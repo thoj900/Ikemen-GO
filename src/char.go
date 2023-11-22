@@ -33,6 +33,8 @@ type CharSpecialFlag uint64
 
 const (
 	CSF_nostandguard CharSpecialFlag = 1 << iota
+	CSF_armor
+	CSF_nohurtstate
 	CSF_nocrouchguard
 	CSF_noairguard
 	CSF_noshadow
@@ -70,7 +72,7 @@ const (
 	CSF_backwidth
 	CSF_trans
 	CSF_gethit
-	CSF_assertspecial CharSpecialFlag = CSF_nostandguard | CSF_nocrouchguard |
+	CSF_assertspecial CharSpecialFlag = CSF_nostandguard | CSF_armor | CSF_nohurtstate | CSF_nocrouchguard |
 		CSF_noairguard | CSF_noshadow | CSF_invisible | CSF_unguardable |
 		CSF_nojugglecheck | CSF_noautoturn | CSF_nowalk | CSF_nobrake |
 		CSF_nocrouch | CSF_nostand | CSF_nojump | CSF_noairjump |
@@ -563,6 +565,8 @@ type HitDef struct {
 	guardpoints                int32
 	redlife                    int32
 	score                      [2]float32
+	nohitstate                 bool
+	throwmultiple              int32
 }
 
 func (hd *HitDef) clear() {
@@ -643,6 +647,7 @@ type GetHitVar struct {
 	hitpower       int32
 	guardpower     int32
 	fatal          bool
+	nohitstate     bool
 }
 
 func (ghv *GetHitVar) clear() {
@@ -1241,8 +1246,8 @@ func (p *Projectile) update(playerNo int) {
 				} else if p.cancelanim != p.anim || p.cancelanim_fflg != p.anim_fflg {
 					p.ani = sys.chars[playerNo][0].getAnim(p.cancelanim, p.cancelanim_fflg, true)
 				}
-			} else if p.pos[0] < sys.xmin/p.localscl-float32(p.edgebound) ||
-				p.pos[0] > sys.xmax/p.localscl+float32(p.edgebound) ||
+			} else if p.pos[0] < (sys.xmin-sys.screenleft)/p.localscl-float32(p.edgebound) ||
+				p.pos[0] > (sys.xmax+sys.screenright)/p.localscl+float32(p.edgebound) ||
 				p.velocity[0]*p.facing < 0 &&
 					p.pos[0] < sys.cam.XMin/p.localscl-float32(p.stagebound) ||
 				p.velocity[0]*p.facing > 0 &&
@@ -3566,7 +3571,7 @@ func (c *Char) mulZV(zv float32) {
 func (c *Char) hitAdd(h int32) {
 	c.hitCount += h
 	c.uniqHitCount += h
-	if len(c.targets) > 0 {
+	if !c.sf(CSF_armor) && !c.sf(CSF_nohurtstate) && !c.ghv.nohitstate && len(c.targets) > 0 {
 		for _, tid := range c.targets {
 			if t := sys.playerID(tid); t != nil {
 				t.receivedHits += h
@@ -3577,7 +3582,7 @@ func (c *Char) hitAdd(h int32) {
 				}
 			}
 		}
-	} else if c.teamside != -1 {
+	} else if !c.sf(CSF_armor) && !c.sf(CSF_nohurtstate) && !c.ghv.nohitstate && c.teamside != -1 {
 		//in mugen HitAdd increases combo count even without targets
 		for i, p := range sys.chars {
 			if len(p) > 0 && c.teamside == ^i&1 {
@@ -3652,7 +3657,7 @@ func (c *Char) setHitdefDefault(hd *HitDef, proj bool) {
 	if hd.attr&^int32(ST_MASK) == 0 {
 		hd.attr = 0
 	}
-	if hd.hitonce < 0 || hd.attr&int32(AT_AT) != 0 {
+	if hd.hitonce < 0 || (hd.attr&int32(AT_AT) != 0 && hd.throwmultiple != 1) {
 		hd.hitonce = 1
 	}
 	ifnanset := func(dst *float32, src float32) {
@@ -3737,6 +3742,9 @@ func (c *Char) setHitdefDefault(hd *HitDef, proj bool) {
 	}
 	hd.playerNo = c.ss.sb.playerNo
 	hd.attackerID = c.id
+	if hd.throwmultiple != 1 {
+		hd.throwmultiple = 0
+	}
 }
 func (c *Char) setFEdge(fe float32) {
 	c.edge[0] = fe
@@ -4931,9 +4939,9 @@ func (c *Char) xScreenBound() {
 		if c.facing > 0 {
 			min, max = -max, -min
 		}
-		x = MaxF(min+sys.xmin/c.localscl, MinF(max+sys.xmax/c.localscl, x))
+		x = ClampF(x, min+sys.xmin/c.localscl, max+sys.xmax/c.localscl)
 	}
-	x = MaxF(sys.stage.leftbound/c.localscl, MinF(sys.stage.rightbound/c.localscl, x))
+	x = ClampF(x, sys.stage.leftbound*sys.stage.localscl/c.localscl, sys.stage.rightbound*sys.stage.localscl/c.localscl)
 	c.setPosX(x)
 }
 func (c *Char) xPlatformBound(pxmin, pxmax float32) {
@@ -4943,7 +4951,7 @@ func (c *Char) xPlatformBound(pxmin, pxmax float32) {
 		if c.facing > 0 {
 			min, max = -max, -min
 		}
-		x = MaxF(min+pxmin/c.localscl, MinF(max+pxmax/c.localscl, x))
+		x = ClampF(x, min+pxmin/c.localscl, max+pxmax/c.localscl)
 	}
 	c.setX(x)
 	c.xScreenBound()
@@ -5220,7 +5228,7 @@ func (c *Char) action() {
 			c.inputFlag = 0
 			if c.player {
 				if c.alive() || !c.scf(SCF_over) || !c.scf(SCF_ko_round_middle) {
-					c.setSF(CSF_screenbound | CSF_movecamera_x | CSF_movecamera_y)
+					c.unsetSF(CSF_screenbound | CSF_movecamera_x | CSF_movecamera_y)
 					if (c.alive() || !c.scf(SCF_over)) && c.roundState() > 0 {
 						c.setSF(CSF_playerpush)
 					}
@@ -5310,7 +5318,7 @@ func (c *Char) action() {
 			}
 		}
 		if c.ghv.damage != 0 {
-			if c.ss.moveType == MT_H {
+			if c.ss.moveType == MT_H || (c.ghv.attr == 65 && c.sf(CSF_armor) && c.ss.moveType == MT_A) || c.sf(CSF_nohurtstate) || c.ghv.nohitstate {
 				c.lifeAdd(-float64(c.ghv.damage), true, true)
 			}
 			c.ghv.damage = 0
@@ -5500,7 +5508,7 @@ func (c *Char) update(cvmin, cvmax,
 		min, max = -max, -min
 	}
 	if c.sf(CSF_screenbound) && !c.scf(SCF_standby) {
-		c.drawPos[0] = MaxF(min+sys.xmin/c.localscl, MinF(max+sys.xmax/c.localscl, c.drawPos[0]))
+		c.drawPos[0] = ClampF(c.drawPos[0], min+sys.xmin/c.localscl, max+sys.xmax/c.localscl)
 	}
 	if c.sf(CSF_movecamera_x) && !c.scf(SCF_standby) {
 		*leftest = MaxF(sys.xmin, MinF(c.drawPos[0]*c.localscl-min*c.localscl, *leftest))
@@ -5513,7 +5521,8 @@ func (c *Char) update(cvmin, cvmax,
 	}
 	if c.sf(CSF_movecamera_y) && !c.scf(SCF_standby) {
 		*highest = MinF(c.drawPos[1]*c.localscl, *highest)
-		*lowest = MinF(0, MaxF(c.drawPos[1]*c.localscl, *lowest))
+		*lowest = MaxF(c.drawPos[1]*c.localscl, *lowest)
+		sys.cam.Pos[1] = 0 + sys.cam.CameraZoomYBound
 	}
 }
 func (c *Char) tick() {
@@ -5560,7 +5569,7 @@ func (c *Char) tick() {
 			c.hitCount += c.hitdef.numhits
 		}
 	}
-	if c.sf(CSF_gethit) {
+	if c.sf(CSF_gethit) && !c.sf(CSF_nohurtstate) && !c.ghv.nohitstate {
 		c.ss.moveType = MT_H
 		if c.hitPauseTime > 0 {
 			c.ss.clearWw()
@@ -5591,8 +5600,38 @@ func (c *Char) tick() {
 			case ST_A:
 				c.selfState(154, -1, -1, 0, false)
 			}
-		} else if c.ghv._type == HT_Trip {
+		} else if c.ghv._type == HT_Trip && !c.sf(CSF_armor) && !c.sf(CSF_nohurtstate) && !c.ghv.nohitstate {
 			c.changeStateEx(5070, pn, -1, 0, false)
+		} else if !c.sf(CSF_armor) && !c.sf(CSF_nohurtstate) && !c.ghv.nohitstate {
+			switch c.ss.stateType {
+			case ST_S:
+				c.changeStateEx(5000, pn, -1, 0, false)
+			case ST_C:
+				c.changeStateEx(5010, pn, -1, 0, false)
+			case ST_A:
+				c.changeStateEx(5020, pn, -1, 0, false)
+			}
+		} else if c.ghv.attr > 65 && c.sf(CSF_armor) && !c.sf(CSF_nohurtstate) {
+			switch c.ss.stateType {
+			case ST_S:
+				c.changeStateEx(5000, pn, -1, 0, false)
+			case ST_C:
+				c.changeStateEx(5010, pn, -1, 0, false)
+			case ST_A:
+				c.changeStateEx(5020, pn, -1, 0, false)
+			}
+		} else if c.ghv.attr == 65 && c.sf(CSF_armor) && !c.sf(CSF_nohurtstate) {
+			switch c.ss.stateType {
+			case ST_S:
+				c.ss.moveType = MT_A
+				c.hitPauseTime = 5
+			case ST_C:
+				c.changeStateEx(5010, pn, -1, 0, false)
+			case ST_A:
+				c.changeStateEx(5020, pn, -1, 0, false)
+			}
+		} else if c.sf(CSF_nohurtstate) || c.ghv.nohitstate {
+			return
 		} else {
 			if c.ghv.forcestand && c.ss.stateType == ST_C {
 				c.ss.stateType = ST_S
@@ -5818,6 +5857,15 @@ func (cl *CharList) update(cvmin, cvmax,
 	for _, c := range ro {
 		c.update(cvmin, cvmax, highest, lowest, leftest, rightest)
 	}
+	if !sys.cam.ytensionenable {
+		*highest = *lowest
+		for _, c := range ro {
+			if c.sf(CSF_movecamera_y) && !c.scf(SCF_standby) {
+				*highest = MinF(c.drawPos[1]*c.localscl, *highest)
+			}
+		}
+		*lowest = *highest
+	}
 }
 func (cl *CharList) clsn(getter *Char, proj bool) {
 	var gxmin, gxmax float32
@@ -5979,6 +6027,7 @@ func (cl *CharList) clsn(getter *Char, proj bool) {
 				ghv.dizzypoints = hd.dizzypoints
 				ghv.guardpoints = hd.guardpoints
 				ghv.redlife = hd.redlife
+				ghv.nohitstate = hd.nohitstate
 				if !math.IsNaN(float64(hd.score[0])) {
 					ghv.score = hd.score[0]
 				}
@@ -6596,7 +6645,7 @@ func (cl *CharList) clsn(getter *Char, proj bool) {
 					}
 					if getter.hitCheck(c) {
 						if contact < 0 {
-							contact = 1
+							contact = -1
 						}
 						if ht := hit(c, &c.hitdef, [2]float32{}, 0, c.attackMul, 1); ht != 0 {
 							mvh := ht > 0 || c.hitdef.reversal_attr > 0
@@ -6637,7 +6686,7 @@ func (cl *CharList) clsn(getter *Char, proj bool) {
 							if mvh {
 								c.mctime = -1
 							}
-							c.hitdefContact = true
+							c.hitdefContact = false
 						}
 					}
 				}
@@ -6677,19 +6726,17 @@ func (cl *CharList) clsn(getter *Char, proj bool) {
 						c.pos[0] -= ((cr - gl) * 0.5) / c.localscl
 					}
 					if getter.sf(CSF_screenbound) {
-						getter.pos[0] = MaxF(gxmin/getter.localscl, MinF(gxmax/getter.localscl, getter.pos[0]))
+						getter.pos[0] = ClampF(getter.pos[0], gxmin/getter.localscl, gxmax/getter.localscl)
 					}
 					if c.sf(CSF_screenbound) {
 						l, r := c.getEdge(c.edge[0], true), -c.getEdge(c.edge[1], true)
 						if c.facing > 0 {
 							l, r = -r, -l
 						}
-						c.pos[0] = MaxF(l+sys.xmin/c.localscl, MinF(r+sys.xmax/c.localscl, c.pos[0]))
+						c.pos[0] = ClampF(c.pos[0], l+sys.xmin/c.localscl, r+sys.xmax/c.localscl)
 					}
-					getter.pos[0] = MaxF(sys.stage.leftbound/getter.localscl, MinF(sys.stage.rightbound/getter.localscl,
-						getter.pos[0]))
-					c.pos[0] = MaxF(sys.stage.leftbound/c.localscl, MinF(sys.stage.rightbound/c.localscl,
-						c.pos[0]))
+					getter.pos[0] = ClampF(getter.pos[0], sys.stage.leftbound*sys.stage.localscl/getter.localscl, sys.stage.rightbound*sys.stage.localscl/getter.localscl)
+					c.pos[0] = ClampF(c.pos[0], sys.stage.leftbound*sys.stage.localscl/c.localscl, sys.stage.rightbound*sys.stage.localscl/c.localscl)
 					getter.drawPos[0], c.drawPos[0] = getter.pos[0], c.pos[0]
 				}
 			}
@@ -6767,4 +6814,22 @@ func (cl *CharList) enemyNear(c *Char, n int32, p2, log bool) *Char {
 		return nil
 	}
 	return (*cache)[n]
+}
+
+type Platform struct {
+	name string
+	id   int32
+
+	pos    [2]float32
+	size   [2]int32
+	offset [2]int32
+
+	anim        int32
+	activeTime  int32
+	isSolid     bool
+	borderFall  bool
+	destroySelf bool
+
+	localScale float32
+	ownerID    int32
 }
