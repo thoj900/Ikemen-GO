@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"unicode"
 )
@@ -47,45 +46,49 @@ func RandI(x, y int32) int32 {
 func RandF(x, y float32) float32 {
 	return x + float32(Random())*(y-x)/float32(IMax)
 }
-
 func Min(arg ...int32) (min int32) {
-	for i, x := range arg {
-		if i == 0 || x < min {
-			min = x
+	if len(arg) > 0 {
+		min = arg[0]
+		for i := 1; i < len(arg); i++ {
+			if arg[i] < min {
+				min = arg[i]
+			}
 		}
 	}
 	return
 }
-
 func Max(arg ...int32) (max int32) {
-	for i, x := range arg {
-		if i == 0 || x > max {
-			max = x
+	if len(arg) > 0 {
+		max = arg[0]
+		for i := 1; i < len(arg); i++ {
+			if arg[i] > max {
+				max = arg[i]
+			}
 		}
 	}
 	return
 }
-
 func MinF(arg ...float32) (min float32) {
-	for i, x := range arg {
-		if i == 0 || x < min {
-			min = x
+	if len(arg) > 0 {
+		min = arg[0]
+		for i := 1; i < len(arg); i++ {
+			if arg[i] < min {
+				min = arg[i]
+			}
 		}
 	}
 	return
 }
-
 func MaxF(arg ...float32) (max float32) {
-	for i, x := range arg {
-		if i == 0 || x > max {
-			max = x
+	if len(arg) > 0 {
+		max = arg[0]
+		for i := 1; i < len(arg); i++ {
+			if arg[i] > max {
+				max = arg[i]
+			}
 		}
 	}
 	return
-}
-
-func Clamp(x, a, b int32) int32 {
-	return Max(a, Min(x, b))
 }
 
 func ClampF(x, a, b float32) float32 {
@@ -109,10 +112,6 @@ func Pow(x, y float32) float32 {
 }
 func IsFinite(f float32) bool {
 	return math.Abs(float64(f)) <= math.MaxFloat64
-}
-func IsNumeric(s string) bool {
-	_, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
-	return err == nil
 }
 func Atoi(str string) int32 {
 	var n int64
@@ -266,7 +265,7 @@ func FileExist(filename string) string {
 	return ""
 }
 
-// SearchFile returns full path to specified file
+//SearchFile returns full path to specified file
 func SearchFile(file string, dirs []string) string {
 	file = strings.Replace(file, "\\", "/", -1)
 	for _, v := range dirs {
@@ -373,21 +372,6 @@ func SectionName(sec string) (string, string) {
 func HasExtension(file, ext string) bool {
 	match, _ := regexp.MatchString(ext, filepath.Ext(strings.ToLower(file)))
 	return match
-}
-
-func sliceContains(s []string, str string, lower bool) bool {
-	if lower {
-		strings.ToLower(str)
-	}
-	for _, v := range s {
-		if lower {
-			strings.ToLower(v)
-		}
-		if v == str {
-			return true
-		}
-	}
-	return false
 }
 
 func sliceInsertInt(array []int, value int, index int) []int {
@@ -554,10 +538,19 @@ func (is IniSection) getText(name string) (str string, ok bool, err error) {
 	if !ok {
 		return
 	}
+	if len(str) < 2 || str[0] != '"' || str[len(str)-1] != '"' {
+		return "", false, Error("Not enclosed in \"")
+	}
+	str = str[1 : len(str)-1]
+	return
+}
+func (is IniSection) getString(name string) (str string, ok bool) {
+	str, ok = is[name]
+	if !ok {
+		return
+	}
 	if len(str) >= 2 && str[0] == '"' && str[len(str)-1] == '"' {
 		str = str[1 : len(str)-1]
-	} else {
-		err = Error("Not enclosed in \"")
 	}
 	return
 }
@@ -630,12 +623,10 @@ func (l *Layout) DrawSprite(x, y float32, ln int16, s *Sprite, fx *PalFX, fscale
 		if l.vfacing < 0 {
 			y += sys.lifebar.fnt_scale * sys.lifebarScale
 		}
-		if s.coldepth <= 8 && s.PalTex == nil {
-			s.CachePalette(s.Pal)
-		}
+		paltex := s.PalTex
 		s.Draw(x+l.offset[0]*sys.lifebarScale, y+l.offset[1]*sys.lifebarScale,
 			l.scale[0]*float32(l.facing)*fscale, l.scale[1]*float32(l.vfacing)*fscale,
-			l.angle, fx, window)
+			l.angle, s.Pal, fx, paltex, window)
 	}
 }
 func (l *Layout) DrawAnim(r *[4]int32, x, y, scl float32, ln int16,
@@ -650,12 +641,12 @@ func (l *Layout) DrawAnim(r *[4]int32, x, y, scl float32, ln int16,
 		}
 		a.Draw(r, x+l.offset[0], y+l.offset[1]+float32(sys.gameHeight-240),
 			scl, scl, l.scale[0]*float32(l.facing), l.scale[0]*float32(l.facing),
-			l.scale[1]*float32(l.vfacing), 0, Rotation{l.angle, 0, 0},
-			float32(sys.gameWidth-320)/2, palfx, false, 1, false, 1, 0, 0)
+			l.scale[1]*float32(l.vfacing), 0, l.angle, 0, 0,
+			float32(sys.gameWidth-320)/2, palfx, false, 1, false, 1)
 	}
 }
-func (l *Layout) DrawText(x, y, scl float32, ln int16,
-	text string, f *Fnt, b, a int32, palfx *PalFX, frgba [4]float32) {
+func (l *Layout) DrawText(x, y, scl float32, ln int16, text string,
+	f *Fnt, b, a int32, palfx *PalFX, frgba [4]float32, round bool) {
 	if l.layerno == ln {
 		//TODO: test "phantom pixel"
 		if l.facing < 0 {
@@ -667,7 +658,7 @@ func (l *Layout) DrawText(x, y, scl float32, ln int16,
 		f.Print(text, (x+l.offset[0])*scl, (y+l.offset[1])*scl,
 			l.scale[0]*sys.lifebar.fnt_scale*float32(l.facing)*scl,
 			l.scale[1]*sys.lifebar.fnt_scale*float32(l.vfacing)*scl, b, a,
-			&l.window, palfx, frgba)
+			&l.window, palfx, frgba, round)
 	}
 }
 
@@ -678,7 +669,7 @@ type AnimLayout struct {
 }
 
 func newAnimLayout(sff *Sff, ln int16) *AnimLayout {
-	return &AnimLayout{anim: *newAnimation(sff, &sff.palList), lay: *newLayout(ln), palfx: newPalFX()}
+	return &AnimLayout{anim: *newAnimation(sff), lay: *newLayout(ln), palfx: newPalFX()}
 }
 func ReadAnimLayout(pre string, is IniSection,
 	sff *Sff, at AnimationTable, ln int16) *AnimLayout {
@@ -724,60 +715,11 @@ func (al *AnimLayout) ReadAnimPalfx(pre string, is IniSection) {
 	is.ReadI32(pre+"time", &al.palfx.time)
 	is.ReadI32(pre+"add", &al.palfx.add[0], &al.palfx.add[1], &al.palfx.add[2])
 	is.ReadI32(pre+"mul", &al.palfx.mul[0], &al.palfx.mul[1], &al.palfx.mul[2])
-	var s [4]int32
-	if is.ReadI32(pre+"sinadd", &s[0], &s[1], &s[2], &s[3]) {
-		if s[3] < 0 {
-			al.palfx.sinadd[0] = -s[0]
-			al.palfx.sinadd[1] = -s[1]
-			al.palfx.sinadd[2] = -s[2]
-			al.palfx.cycletime[0] = -s[3]
-		} else {
-			al.palfx.sinadd[0] = s[0]
-			al.palfx.sinadd[1] = s[1]
-			al.palfx.sinadd[2] = s[2]
-			al.palfx.cycletime[0] = s[3]
-		}
-	}
-	if is.ReadI32(pre+"sinmul", &s[0], &s[1], &s[2], &s[3]) {
-		if s[3] < 0 {
-			al.palfx.sinmul[0] = -s[0]
-			al.palfx.sinmul[1] = -s[1]
-			al.palfx.sinmul[2] = -s[2]
-			al.palfx.cycletime[1] = -s[3]
-		} else {
-			al.palfx.sinmul[0] = s[0]
-			al.palfx.sinmul[1] = s[1]
-			al.palfx.sinmul[2] = s[2]
-			al.palfx.cycletime[1] = s[3]
-		}
-	}
-	var s2 [2]int32
-	if is.ReadI32(pre+"sincolor", &s2[0], &s2[1]) {
-		if s2[1] < 0 {
-			al.palfx.sincolor = -s2[0]
-			al.palfx.cycletime[2] = -s2[1]
-		} else {
-			al.palfx.sincolor = s2[0]
-			al.palfx.cycletime[2] = s2[1]
-		}
-	}
-	if is.ReadI32(pre+"sinhue", &s2[0], &s2[1]) {
-		if s2[1] < 0 {
-			al.palfx.sinhue = -s2[0]
-			al.palfx.cycletime[3] = -s2[1]
-		} else {
-			al.palfx.sinhue = s2[0]
-			al.palfx.cycletime[3] = s2[1]
-		}
-	}
+	is.ReadI32(pre+"sinadd", &al.palfx.sinadd[0], &al.palfx.sinadd[1], &al.palfx.sinadd[2], &al.palfx.cycletime)
 	is.ReadBool(pre+"invertall", &al.palfx.invertall)
-	is.ReadI32(pre+"invertblend", &al.palfx.invertblend)
 	var n float32
 	if is.ReadF32(pre+"color", &n) {
-		al.palfx.color = n / 256
-	}
-	if is.ReadF32(pre+"hue", &n) {
-		al.palfx.hue = n / 256
+		al.palfx.color = MaxF(0, MinF(1, n/256))
 	}
 }
 
@@ -828,7 +770,7 @@ func (ats *AnimTextSnd) Draw(x, y float32, layerno int16, f []*Fnt, scale float3
 				float32(k)*(float32(f[ats.text.font[0]].Size[1])*ats.text.lay.scale[1]*sys.lifebar.fnt_scale+
 					float32(f[ats.text.font[0]].Spacing[1])*ats.text.lay.scale[1]*sys.lifebar.fnt_scale),
 				scale, layerno, v, f[ats.text.font[0]], ats.text.font[1], ats.text.font[2], ats.text.palfx,
-				ats.text.frgba)
+				ats.text.frgba, true)
 		}
 	}
 }

@@ -94,19 +94,30 @@ func ReadAnimFrame(line string) *AnimFrame {
 	case len(a) > 0 && a[0] == 'a':
 		af.SrcAlpha, af.DstAlpha = 255, 255
 	}
-	if len(ary) < 8 || (len(ary) == 8 && !IsNumeric(ary[7])) {
+	if len(ary) < 8 {
 		return af
 	}
 	af.Ex = make([][]float32, 3)
-	af.Ex[2] = append(af.Ex[2], float32(Atof(ary[7]))) // X-Scale
-	if len(ary) < 9 || (len(ary) == 9 && !IsNumeric(ary[8])) {
+	var f float32
+	if f = float32(Atof(ary[7])); f == 0 {
+		f = 1
+	}
+	af.Ex[2] = append(af.Ex[2], f) // X-Scale
+	if len(ary) < 9 {
 		return af
 	}
-	af.Ex[2] = append(af.Ex[2], float32(Atof(ary[8]))) // Y-Scale
-	if len(ary) < 10 || !IsNumeric(ary[9]) {
+	if f = float32(Atof(ary[8])); f == 0 {
+		f = 1
+	}
+	af.Ex[2] = append(af.Ex[2], f) // Y-Scale
+	if len(ary) < 10 {
 		return af
 	}
-	af.Ex[2] = append(af.Ex[2], float32(Atof(ary[9]))) // Angle
+	f = float32(Atof(ary[9]))
+	af.Ex[2] = append(af.Ex[2], f) // Angle
+	if len(ary) < 11 {
+		return af
+	}
 	return af
 }
 func (af *AnimFrame) Clsn1() []float32 {
@@ -124,10 +135,9 @@ func (af *AnimFrame) Clsn2() []float32 {
 
 type Animation struct {
 	sff                *Sff
-	palettedata        *PaletteList
 	spr                *Sprite
 	frames             []AnimFrame
-	tile               Tiling
+	tile               [4]int32
 	loopstart          int32
 	interpolate_offset []int32
 	interpolate_scale  []int32
@@ -157,13 +167,12 @@ type Animation struct {
 	start_scale                [2]float32
 }
 
-func newAnimation(sff *Sff, pal *PaletteList) *Animation {
-	return &Animation{sff: sff, palettedata: pal, mask: -1, srcAlpha: -1, newframe: true,
+func newAnimation(sff *Sff) *Animation {
+	return &Animation{sff: sff, mask: -1, srcAlpha: -1, newframe: true,
 		remap: make(RemapPreset), start_scale: [...]float32{1, 1}}
 }
-func ReadAnimation(sff *Sff, pal *PaletteList, lines []string, i *int) *Animation {
-	a := newAnimation(sff, pal)
-
+func ReadAnimation(sff *Sff, lines []string, i *int) *Animation {
+	a := newAnimation(sff)
 	a.mask = 0
 	ols := int32(0)
 	var clsn1, clsn1d, clsn2, clsn2d []float32
@@ -293,7 +302,7 @@ func ReadAnimation(sff *Sff, pal *PaletteList, lines []string, i *int) *Animatio
 	}
 	return a
 }
-func ReadAction(sff *Sff, pal *PaletteList, lines []string, i *int) (no int32, a *Animation) {
+func ReadAction(sff *Sff, lines []string, i *int) (no int32, a *Animation) {
 	var name, subname string
 	for ; *i < len(lines); (*i)++ {
 		name, subname = SectionName(lines[*i])
@@ -312,7 +321,7 @@ func ReadAction(sff *Sff, pal *PaletteList, lines []string, i *int) (no int32, a
 		return
 	}
 	(*i)++
-	return Atoi(subname[spi+1:]), ReadAnimation(sff, pal, lines, i)
+	return Atoi(subname[spi+1:]), ReadAnimation(sff, lines, i)
 }
 func (a *Animation) Reset() {
 	a.current, a.drawidx = 0, 0
@@ -491,14 +500,14 @@ func (a *Animation) UpdateSprite() {
 		nextDrawidx = a.loopstart
 	}
 	for _, i := range a.interpolate_offset {
-		if nextDrawidx == i && (a.frames[a.drawidx].Time >= 0) {
+		if nextDrawidx == i {
 			a.interpolate_offset_x = float32(a.frames[nextDrawidx].X-a.frames[a.drawidx].X) / float32(a.curFrame().Time) * float32(a.time)
 			a.interpolate_offset_y = float32(a.frames[nextDrawidx].Y-a.frames[a.drawidx].Y) / float32(a.curFrame().Time) * float32(a.time)
 			break
 		}
 	}
 	for _, i := range a.interpolate_scale {
-		if nextDrawidx == i && (a.frames[a.drawidx].Time >= 0) {
+		if nextDrawidx == i {
 			var drawframe_scale_x, nextframe_scale_x, drawframe_scale_y, nextframe_scale_y float32 = 1, 1, 1, 1
 			if len(a.frames[a.drawidx].Ex) > 2 {
 				if len(a.frames[a.drawidx].Ex[2]) > 0 {
@@ -524,7 +533,7 @@ func (a *Animation) UpdateSprite() {
 	a.scale_x *= a.start_scale[0]
 	a.scale_y *= a.start_scale[1]
 	for _, i := range a.interpolate_angle {
-		if nextDrawidx == i && (a.frames[a.drawidx].Time >= 0) {
+		if nextDrawidx == i {
 			var drawframe_angle, nextframe_angle float32 = 0, 0
 			if len(a.frames[a.drawidx].Ex) > 2 {
 				if len(a.frames[a.drawidx].Ex[2]) > 2 {
@@ -543,7 +552,7 @@ func (a *Animation) UpdateSprite() {
 	if byte(a.interpolate_blend_srcalpha) != 1 ||
 		byte(a.interpolate_blend_dstalpha) != 255 {
 		for _, i := range a.interpolate_blend {
-			if nextDrawidx == i && (a.frames[a.drawidx].Time >= 0) {
+			if nextDrawidx == i {
 				a.interpolate_blend_srcalpha += (float32(a.frames[nextDrawidx].SrcAlpha) - a.interpolate_blend_srcalpha) / float32(a.curFrame().Time) * float32(a.time)
 				a.interpolate_blend_dstalpha += (float32(a.frames[nextDrawidx].DstAlpha) - a.interpolate_blend_dstalpha) / float32(a.curFrame().Time) * float32(a.time)
 				if byte(a.interpolate_blend_srcalpha) == 1 && byte(a.interpolate_blend_dstalpha) == 255 {
@@ -628,24 +637,13 @@ func (a *Animation) alpha() int32 {
 	return trans
 }
 func (a *Animation) pal(pfx *PalFX, neg bool) (p []uint32, plt *Texture) {
-	if a.palettedata != nil {
-		if pfx != nil && len(pfx.remap) > 0 {
-			a.palettedata.SwapPalMap(&pfx.remap)
-		}
-		p = a.spr.GetPal(a.palettedata)
-		plt = a.spr.GetPalTex(a.palettedata)
-		if pfx != nil && len(pfx.remap) > 0 {
-			a.palettedata.SwapPalMap(&pfx.remap)
-		}
-	} else {
-		if pfx != nil && len(pfx.remap) > 0 {
-			a.sff.palList.SwapPalMap(&pfx.remap)
-		}
-		p = a.spr.GetPal(&a.sff.palList)
-		plt = a.spr.GetPalTex(&a.sff.palList)
-		if pfx != nil && len(pfx.remap) > 0 {
-			a.sff.palList.SwapPalMap(&pfx.remap)
-		}
+	if pfx != nil && len(pfx.remap) > 0 {
+		a.sff.palList.SwapPalMap(&pfx.remap)
+	}
+	p = a.spr.GetPal(&a.sff.palList)
+	plt = a.spr.GetPalTex(&a.sff.palList)
+	if pfx != nil && len(pfx.remap) > 0 {
+		a.sff.palList.SwapPalMap(&pfx.remap)
 	}
 	return
 }
@@ -658,21 +656,20 @@ func (a *Animation) drawSub1(angle, facing float32) (h, v, agl float32) {
 	return
 }
 func (a *Animation) Draw(window *[4]int32, x, y, xcs, ycs, xs, xbs, ys,
-	rxadd float32, rot Rotation, rcx float32, pfx *PalFX, old bool, facing float32, isReflection bool, posLocalscl float32, projectionMode int32, fLength float32) {
+	rxadd, angle, yangle, xangle, rcx float32, pfx *PalFX, old bool, facing float32, isReflection bool, posLocalscl float32) {
 	if a.spr == nil || a.spr.Tex == nil {
 		return
 	}
-	h, v, angle := a.drawSub1(rot.angle, facing)
+	h, v, angle := a.drawSub1(angle, facing)
 	if isReflection {
 		angle = -angle
 	}
-	rot.angle = angle
 	xs *= xcs * h
 	ys *= ycs * v
 	x = xcs*x + xs*posLocalscl*(float32(a.frames[a.drawidx].X)+a.interpolate_offset_x)*a.start_scale[0]*(1/a.scale_x)
 	y = ycs*y + ys*posLocalscl*(float32(a.frames[a.drawidx].Y)+a.interpolate_offset_y)*a.start_scale[1]*(1/a.scale_y)
 	var rcy float32
-	if rot.IsZero() {
+	if angle == 0 && yangle == 0 && xangle == 0 {
 		if xs < 0 {
 			x *= -1
 			if old {
@@ -685,18 +682,18 @@ func (a *Animation) Draw(window *[4]int32, x, y, xcs, ycs, xs, xbs, ys,
 				y += ys
 			}
 		}
-		if a.tile.x == 1 {
-			tmp := xs * float32(a.tile.sx)
-			if a.tile.sx <= 0 {
+		if a.tile[2] == 1 {
+			tmp := xs * float32(a.tile[0])
+			if a.tile[0] <= 0 {
 				tmp += xs * float32(a.spr.Size[0])
 			}
 			if tmp != 0 {
 				x -= float32(int(x/tmp)) * tmp
 			}
 		}
-		if a.tile.y == 1 {
-			tmp := ys * float32(a.tile.sy)
-			if a.tile.sy <= 0 {
+		if a.tile[3] == 1 {
+			tmp := ys * float32(a.tile[1])
+			if a.tile[1] <= 0 {
 				tmp += ys * float32(a.spr.Size[1])
 			}
 			if tmp != 0 {
@@ -709,75 +706,54 @@ func (a *Animation) Draw(window *[4]int32, x, y, xcs, ycs, xs, xbs, ys,
 	} else {
 		rcx, rcy = (x+rcx)*sys.widthScale, y*sys.heightScale
 		x, y = AbsF(xs)*float32(a.spr.Offset[0]), AbsF(ys)*float32(a.spr.Offset[1])
-		fLength *= ycs
 	}
 	trans := a.alpha()
 	pal, paltex := a.pal(pfx, trans == -2)
-	if a.spr.coldepth <= 8 && paltex == nil {
-		paltex = a.spr.CachePalette(pal)
-	}
-	rp := RenderParams{
-		a.spr.Tex, paltex, a.spr.Size,
-		x * sys.widthScale,
-		y * sys.heightScale, a.tile, xs * sys.widthScale, xcs * xbs * h * sys.widthScale,
-		ys * sys.heightScale, 1, xcs * rxadd * sys.widthScale / sys.heightScale, rot,
-		0, trans, int32(a.mask), pfx, window, rcx, rcy, projectionMode, fLength * sys.heightScale,
-		xs * posLocalscl * (float32(a.frames[a.drawidx].X) + a.interpolate_offset_x) * a.start_scale[0] * (1 / a.scale_x) * sys.widthScale,
-		ys * posLocalscl * (float32(a.frames[a.drawidx].Y) + a.interpolate_offset_y) * a.start_scale[1] * (1 / a.scale_y) * sys.heightScale,
-	}
-	RenderSprite(rp)
+	a.spr.glDraw(pal, int32(a.mask), x*sys.widthScale,
+		y*sys.heightScale, &a.tile, xs*sys.widthScale, xcs*xbs*h*sys.widthScale,
+		ys*sys.heightScale, xcs*rxadd*sys.widthScale/sys.heightScale, angle, yangle, xangle,
+		trans, window, rcx, rcy, pfx, paltex)
 }
-func (a *Animation) ShadowDraw(window *[4]int32, x, y, xscl, yscl, vscl, rxadd float32, rot Rotation,
-	pfx *PalFX, old bool, color uint32, alpha int32, facing float32, posLocalscl float32, projectionMode int32, fLength float32) {
+func (a *Animation) ShadowDraw(x, y, xscl, yscl, vscl, angle, yangle, xangle float32,
+	pfx *PalFX, old bool, color uint32, alpha int32, facing float32, posLocalscl float32) {
 	if a.spr == nil || a.spr.Tex == nil {
 		return
 	}
-	h, v, angle := a.drawSub1(rot.angle, facing)
-	rot.angle = -angle
+	h, v, angle := a.drawSub1(angle, facing)
+	angle = -angle
 	x += xscl * posLocalscl * h * (float32(a.frames[a.drawidx].X) + a.interpolate_offset_x) * (1 / a.scale_x)
 	y += yscl * posLocalscl * vscl * v * (float32(a.frames[a.drawidx].Y) + a.interpolate_offset_y) * (1 / a.scale_x)
-
-	rp := RenderParams{
-		a.spr.Tex, nil, a.spr.Size,
-		AbsF(xscl*h) * float32(a.spr.Offset[0]) * sys.widthScale,
-		AbsF(yscl*v) * float32(a.spr.Offset[1]) * sys.heightScale, a.tile,
-		xscl * h * sys.widthScale, xscl * h * sys.widthScale,
-		yscl * v * sys.heightScale, vscl, rxadd, rot, color | 0xff000000, 0, int32(a.mask), nil, window,
-		(x + float32(sys.gameWidth)/2) * sys.widthScale, y * sys.heightScale,
-		projectionMode, fLength,
-		xscl * posLocalscl * h * (float32(a.frames[a.drawidx].X) + a.interpolate_offset_x) * (1 / a.scale_x),
-		yscl * posLocalscl * vscl * v * (float32(a.frames[a.drawidx].Y) + a.interpolate_offset_y) * (1 / a.scale_y),
-	}
-
-	// TODO: This is redundant now that rp.tint is used to colorise the shadow
-	if a.spr.coldepth <= 8 {
+	var draw func(int32)
+	if a.spr.rle <= -11 {
+		draw = func(trans int32) {
+			RenderMugenFcS(*a.spr.Tex, a.spr.Size,
+				AbsF(xscl*h)*float32(a.spr.Offset[0])*sys.widthScale,
+				AbsF(yscl*v)*float32(a.spr.Offset[1])*sys.heightScale, &a.tile,
+				xscl*h*sys.widthScale, xscl*h*sys.widthScale,
+				yscl*v*sys.heightScale, vscl, 0, angle, yangle, xangle, trans, &sys.scrrect,
+				(x+float32(sys.gameWidth)/2)*sys.widthScale, y*sys.heightScale, color)
+		}
+	} else {
 		var pal [256]uint32
 		if color != 0 || alpha > 0 {
-			paltemp := a.spr.paltemp
-			if len(paltemp) == 0 {
-				if a.palettedata != nil {
-					paltemp = a.spr.GetPal(a.palettedata)
-				} else {
-					paltemp = a.spr.GetPal(&a.sff.palList)
-				}
-			}
 			for i := range pal {
-				// Skip transparent colors
-				if len(paltemp) > i && paltemp[i] != 0 {
-					pal[i] = color | 0xff000000
-				}
+				pal[i] = color | 0xff000000
 			}
 		}
-		rp.paltex = PaletteToTexture(pal[:])
+		draw = func(trans int32) {
+			RenderMugen(*a.spr.Tex, pal[:], int32(a.mask), a.spr.Size,
+				AbsF(xscl*h)*float32(a.spr.Offset[0])*sys.widthScale,
+				AbsF(yscl*v)*float32(a.spr.Offset[1])*sys.heightScale, &a.tile,
+				xscl*h*sys.widthScale, xscl*h*sys.widthScale,
+				yscl*v*sys.heightScale, vscl, 0, angle, yangle, xangle, trans, &sys.scrrect,
+				(x+float32(sys.gameWidth)/2)*sys.widthScale, y*sys.heightScale)
+		}
 	}
-
 	if color != 0 {
-		rp.trans = -2
-		RenderSprite(rp)
+		draw(-2)
 	}
 	if alpha > 0 {
-		rp.trans = (256-alpha)<<10 | 1<<9
-		RenderSprite(rp)
+		draw((256-alpha)<<10 | 1<<9)
 	}
 }
 
@@ -786,17 +762,17 @@ type AnimationTable map[int32]*Animation
 func NewAnimationTable() AnimationTable {
 	return AnimationTable(make(map[int32]*Animation))
 }
-func (at AnimationTable) readAction(sff *Sff, pal *PaletteList,
+func (at AnimationTable) readAction(sff *Sff,
 	lines []string, i *int) *Animation {
 	for *i < len(lines) {
-		no, a := ReadAction(sff, pal, lines, i)
+		no, a := ReadAction(sff, lines, i)
 		if a != nil {
 			if tmp := at[no]; tmp != nil {
 				return tmp
 			}
 			at[no] = a
 			for len(a.frames) == 0 && *i < len(lines) {
-				if a2 := at.readAction(sff, pal, lines, i); a2 != nil {
+				if a2 := at.readAction(sff, lines, i); a2 != nil {
 					*a = *a2
 					break
 				}
@@ -809,9 +785,9 @@ func (at AnimationTable) readAction(sff *Sff, pal *PaletteList,
 	}
 	return nil
 }
-func ReadAnimationTable(sff *Sff, pal *PaletteList, lines []string, i *int) AnimationTable {
+func ReadAnimationTable(sff *Sff, lines []string, i *int) AnimationTable {
 	at := NewAnimationTable()
-	for at.readAction(sff, pal, lines, i) != nil {
+	for at.readAction(sff, lines, i) != nil {
 	}
 	return at
 }
@@ -832,16 +808,15 @@ type SprData struct {
 	scl         [2]float32
 	alpha       [2]int32
 	priority    int32
-	rot         Rotation
+	angle       float32
+	yangle      float32
+	xangle      float32
 	ascl        [2]float32
 	screen      bool
 	bright      bool
 	oldVer      bool
 	facing      float32
 	posLocalscl float32
-	projection  int32
-	fLength     float32
-	window      [4]float32
 }
 type DrawList []*SprData
 
@@ -849,7 +824,7 @@ func (dl *DrawList) add(sd *SprData, sc, salp int32, so, fo float32) {
 	if sys.frameSkip || sd.anim == nil || sd.anim.spr == nil {
 		return
 	}
-	if sd.rot.angle != 0 {
+	if sd.angle != 0 {
 		for i, as := range sd.ascl {
 			sd.scl[i] *= as
 		}
@@ -895,25 +870,8 @@ func (dl DrawList) draw(x, y, scl float32) {
 				(sys.cam.GroundLevel()+sys.cam.Offset[1]-sys.envShake.getOffset())/cs -
 					(y - s.pos[1])}
 		}
-		if s.window[0] != 0 || s.window[1] != 0 || s.window[2] != 0 || s.window[3] != 0 {
-			w := s.window
-			if w[0] > w[2] {
-				w[0], w[2] = w[2], w[0]
-			}
-			if w[1] > w[3] {
-				w[1], w[3] = w[3], w[1]
-			}
-			var window [4]int32
-			window[0] = int32((cs*(p[0]+float32(w[0])) + float32(sys.gameWidth)/2) * sys.widthScale)
-			window[1] = int32(cs * (p[1] + float32(w[1])) * sys.heightScale)
-			window[2] = int32(cs * (w[2] - w[0]) * sys.widthScale)
-			window[3] = int32(cs * (w[3] - w[1]) * sys.heightScale)
-			s.anim.Draw(&window, p[0], p[1], cs, cs, s.scl[0], s.scl[0],
-				s.scl[1], 0, s.rot, float32(sys.gameWidth)/2, s.fx, s.oldVer, s.facing, false, s.posLocalscl, s.projection, s.fLength)
-		} else {
-			s.anim.Draw(&sys.scrrect, p[0], p[1], cs, cs, s.scl[0], s.scl[0],
-				s.scl[1], 0, s.rot, float32(sys.gameWidth)/2, s.fx, s.oldVer, s.facing, false, s.posLocalscl, s.projection, s.fLength)
-		}
+		s.anim.Draw(&sys.scrrect, p[0], p[1], cs, cs, s.scl[0], s.scl[0],
+			s.scl[1], 0, s.angle, s.yangle, s.xangle, float32(sys.gameWidth)/2, s.fx, s.oldVer, s.facing, false, s.posLocalscl)
 		sys.brightness = ob
 	}
 }
@@ -971,38 +929,11 @@ func (sl ShadowList) draw(x, y, scl float32) {
 		}
 		color = color&0xff*alpha<<8&0xff0000 |
 			color&0xff00*alpha>>8&0xff00 | color&0xff0000*alpha>>24&0xff
-		xshear := sys.stage.sdw.xshear
-		if sys.stage.sdw.yscale > 0 {
-			xshear = -xshear
-		}
-		xshearoff := -sys.stage.sdw.xshear * (float32(s.anim.spr.Size[1])*sys.stage.localscl - s.pos[1])
-		if s.window[0] != 0 || s.window[1] != 0 || s.window[2] != 0 || s.window[3] != 0 {
-			w := s.window
-			w[1], w[3] = -w[1], -w[3]
-			if w[0] > w[2] {
-				w[0], w[2] = w[2], w[0]
-			}
-			if (w[1] > w[3] && sys.stage.sdw.yscale > 0) || (w[1] < w[3] && sys.stage.sdw.yscale < 0) {
-				w[1], w[3] = w[3], w[1]
-			}
-			var window [4]int32
-
-			window[0] = int32((sys.cam.Offset[0] - ((x - s.pos[0] - xshearoff) * scl) + w[0]*scl + float32(sys.gameWidth)/2) * sys.widthScale)
-			window[1] = int32((sys.cam.GroundLevel() + sys.cam.Offset[1] - sys.envShake.getOffset() - (y+s.pos[1]*sys.stage.sdw.yscale-s.offsetY)*scl + w[1]*sys.stage.sdw.yscale*scl) * sys.heightScale)
-			window[2] = int32(scl * (w[2] - w[0]) * sys.widthScale)
-			window[3] = int32(scl * (w[3] - w[1]) * sys.heightScale * sys.stage.sdw.yscale)
-			s.anim.ShadowDraw(&window, sys.cam.Offset[0]-(x-s.pos[0]-xshearoff)*scl,
-				sys.cam.GroundLevel()+sys.cam.Offset[1]-sys.envShake.getOffset()-
-					(y+s.pos[1]*sys.stage.sdw.yscale-s.offsetY)*scl,
-				scl*s.scl[0], scl*-s.scl[1], sys.stage.sdw.yscale, xshear, s.rot,
-				&sys.bgPalFX, s.oldVer, uint32(color), intensity, s.facing, s.posLocalscl, s.projection, s.fLength)
-		} else {
-			s.anim.ShadowDraw(&sys.scrrect, sys.cam.Offset[0]-(x-s.pos[0]-xshearoff)*scl,
-				sys.cam.GroundLevel()+sys.cam.Offset[1]-sys.envShake.getOffset()-
-					(y+s.pos[1]*sys.stage.sdw.yscale-s.offsetY)*scl,
-				scl*s.scl[0], scl*-s.scl[1], sys.stage.sdw.yscale, xshear, s.rot,
-				&sys.bgPalFX, s.oldVer, uint32(color), intensity, s.facing, s.posLocalscl, s.projection, s.fLength)
-		}
+		s.anim.ShadowDraw(sys.cam.Offset[0]-(x-s.pos[0])*scl,
+			sys.cam.GroundLevel()+sys.cam.Offset[1]-sys.envShake.getOffset()-
+				(y+s.pos[1]*sys.stage.sdw.yscale-s.offsetY)*scl,
+			scl*s.scl[0], scl*-s.scl[1], sys.stage.sdw.yscale, s.angle, s.yangle, s.xangle,
+			&sys.bgPalFX, s.oldVer, uint32(color), intensity, s.facing, s.posLocalscl)
 	}
 }
 func (sl ShadowList) drawReflection(x, y, scl float32) {
@@ -1013,8 +944,7 @@ func (sl ShadowList) drawReflection(x, y, scl float32) {
 		} else {
 			s.anim.srcAlpha, s.anim.dstAlpha = int16(s.alpha[0]), int16(s.alpha[1])
 		}
-		//ref := sys.stage.reflection * s.shadowAlpha >> 8
-		ref := sys.stage.reflection
+		ref := sys.stage.reflection * s.shadowAlpha >> 8
 		s.anim.srcAlpha = int16(float32(int32(s.anim.srcAlpha)*ref) / 255)
 		if s.anim.dstAlpha < 0 {
 			s.anim.dstAlpha = 128
@@ -1023,33 +953,10 @@ func (sl ShadowList) drawReflection(x, y, scl float32) {
 		if s.anim.srcAlpha == 1 && s.anim.dstAlpha == 255 {
 			s.anim.srcAlpha = 0
 		}
-
-		if s.window[0] != 0 || s.window[1] != 0 || s.window[2] != 0 || s.window[3] != 0 {
-			w := s.window
-			w[1], w[3] = -w[1], -w[3]
-			if w[0] > w[2] {
-				w[0], w[2] = w[2], w[0]
-			}
-			if w[1] > w[3] {
-				w[1], w[3] = w[3], w[1]
-			}
-			var window [4]int32
-			window[0] = int32((scl*(sys.cam.Offset[0]/scl-(x-s.pos[0])+float32(w[0])) + float32(sys.gameWidth)/2) * sys.widthScale)
-			window[1] = int32(scl * ((sys.cam.GroundLevel()+sys.cam.Offset[1]-sys.envShake.getOffset())/scl - (y + s.pos[1] - s.offsetY) + float32(w[1])) * sys.heightScale)
-			window[2] = int32(scl * (w[2] - w[0]) * sys.widthScale)
-			window[3] = int32(scl * (w[3] - w[1]) * sys.heightScale)
-
-			s.anim.Draw(&window, sys.cam.Offset[0]/scl-(x-s.pos[0]),
-				(sys.cam.GroundLevel()+sys.cam.Offset[1]-sys.envShake.getOffset())/scl-
-					(y+s.pos[1]-s.offsetY), scl, scl, s.scl[0], s.scl[0], -s.scl[1], 0,
-				s.rot, float32(sys.gameWidth)/2, s.fx, s.oldVer, s.facing, true, s.posLocalscl, s.projection, s.fLength)
-		} else {
-			s.anim.Draw(&sys.scrrect, sys.cam.Offset[0]/scl-(x-s.pos[0]),
-				(sys.cam.GroundLevel()+sys.cam.Offset[1]-sys.envShake.getOffset())/scl-
-					(y+s.pos[1]-s.offsetY), scl, scl, s.scl[0], s.scl[0], -s.scl[1], 0,
-				s.rot, float32(sys.gameWidth)/2, s.fx, s.oldVer, s.facing, true, s.posLocalscl, s.projection, s.fLength)
-		}
-
+		s.anim.Draw(&sys.scrrect, sys.cam.Offset[0]/scl-(x-s.pos[0]),
+			(sys.cam.GroundLevel()+sys.cam.Offset[1]-sys.envShake.getOffset())/scl-
+				(y+s.pos[1]-s.offsetY), scl, scl, s.scl[0], s.scl[0], -s.scl[1], 0,
+			s.angle, s.yangle, s.xangle, float32(sys.gameWidth)/2, s.fx, s.oldVer, s.facing, true, s.posLocalscl)
 	}
 }
 
@@ -1062,7 +969,7 @@ type Anim struct {
 
 func NewAnim(sff *Sff, action string) *Anim {
 	lines, i := SplitAndTrim(action, "\n"), 0
-	a := &Anim{anim: ReadAnimation(sff, &sff.palList, lines, &i),
+	a := &Anim{anim: ReadAnimation(sff, lines, &i),
 		window: sys.scrrect, x: sys.luaSpriteOffsetX,
 		xscl: 1, yscl: 1, palfx: newPalFX()}
 	a.palfx.clear()
@@ -1080,7 +987,7 @@ func (a *Anim) AddPos(x, y float32) {
 	a.y += y
 }
 func (a *Anim) SetTile(x, y, sx, sy int32) {
-	a.anim.tile.x, a.anim.tile.y, a.anim.tile.sx, a.anim.tile.sy = x, y, sx, sy
+	a.anim.tile[2], a.anim.tile[3], a.anim.tile[0], a.anim.tile[1] = x, y, sx, sy
 }
 func (a *Anim) SetColorKey(mask int16) {
 	a.anim.mask = mask
@@ -1110,7 +1017,7 @@ func (a *Anim) Draw() {
 	if !sys.frameSkip {
 		a.anim.Draw(&a.window, a.x+float32(sys.gameWidth-320)/2,
 			a.y+float32(sys.gameHeight-240), 1, 1, a.xscl, a.xscl, a.yscl,
-			0, Rotation{}, 0, a.palfx, false, 1, false, 1, 0, 0)
+			0, 0, 0, 0, 0, a.palfx, false, 1, false, 1)
 	}
 }
 func (a *Anim) ResetFrames() {
@@ -1138,7 +1045,7 @@ func (pa PreloadedAnims) addSprite(sff *Sff, grp, idx int16) {
 	if sff.GetSprite(grp, idx) == nil {
 		return
 	}
-	anim := newAnimation(sff, &sff.palList)
+	anim := newAnimation(sff)
 	anim.mask = 0
 	af := newAnimFrame()
 	af.Group, af.Number = grp, idx
