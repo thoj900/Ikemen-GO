@@ -33,14 +33,14 @@ addHotkey('F2', true, false, false, false, true, 'kill(1,1);kill(3,1);kill(5,1);
 addHotkey('F2', false, false, true, false, true, 'kill(2,1);kill(4,1);kill(6,1);kill(8,1);debugFlag(1)')
 addHotkey('F3', false, false, false, false, true, 'powMax(1);powMax(2);debugFlag(1);debugFlag(2)')
 addHotkey('F3', true, false, true, false, true, 'toggleMaxPowerMode();debugFlag(1);debugFlag(2)')
-addHotkey('F4', false, false, false, false, true, 'roundReset();closeMenu()')
-addHotkey('F4', false, false, true, false, true, 'reload();closeMenu()')
+addHotkey('F4', false, false, false, false, true, 'roundReset()')
+addHotkey('F4', false, false, true, false, true, 'reload()')
 addHotkey('F5', false, false, false, false, true, 'setTime(0);debugFlag(1);debugFlag(2)')
 addHotkey('SPACE', false, false, false, false, true, 'full(1);full(2);full(3);full(4);full(5);full(6);full(7);full(8);setTime(getRoundTime());debugFlag(1);debugFlag(2);clearConsole()')
 addHotkey('i', true, false, false, true, true, 'stand(1);stand(2);stand(3);stand(4);stand(5);stand(6);stand(7);stand(8)')
-addHotkey('PAUSE', false, false, false, true, false, 'togglePause();closeMenu()')
-addHotkey('PAUSE', true, false, false, true, false, 'step()')
-addHotkey('SCROLLLOCK', false, false, false, true, false, 'step()')
+addHotkey('PAUSE', false, false, false, true, true, 'togglePause()')
+addHotkey('PAUSE', true, false, false, true, true, 'step()')
+addHotkey('SCROLLLOCK', false, false, false, true, true, 'step()')
 
 local speedMul = 1
 local speedAdd = 0
@@ -73,7 +73,6 @@ function kill(p, ...)
 		local n = ...
 		if not n then n = 0 end
 		setLife(n)
-		setRedLife(0)
 		playerid(oldid)
 	end
 end
@@ -95,7 +94,7 @@ function full(p)
 		setPower(powermax())
 		setGuardPoints(guardpointsmax())
 		setDizzyPoints(dizzypointsmax())
-		setRedLife(lifemax())
+		setRedLife(0)
 		removeDizzy()
 		playerid(oldid)
 	end
@@ -113,10 +112,6 @@ function debugFlag(side)
 	if start ~= nil and start.t_savedData.debugFlag ~= nil then
 		start.t_savedData.debugflag[side] = true
 	end
-end
-
-function closeMenu()
-	main.pauseMenu = false
 end
 
 --;===========================================================
@@ -149,7 +144,7 @@ function boolToInt(bool)
 end
 
 function engineInfo()
-	return string.format('Frames: %d, VSync: %d; Speed: %d/%d%%', tickcount(), vsync(), gameLogicSpeed(), gamespeed())
+	return string.format('VSync: %d; Speed: %d/%d%%', vsync(), gameLogicSpeed(), gamespeed())
 end
 
 function playerInfo()
@@ -159,14 +154,14 @@ end
 function actionInfo()
 	return string.format(
 		'ActionID: %d (P%d); SPR: %d,%d; ElemNo: %d/%d; Time: %d/%d (%d/%d)',
-		anim(), animowner(), spritegroup(), spritenumber(), animelemno(-1), animelemcount(), animelemtimesum(), animelemlength(), animtimesum(), animlength()
+		anim(), animowner(), spritegroup(), spritenumber(), animelemno(0), animelemcount(), animelemtimesum(), animelemlength(), animtimesum(), animlength()
 	)
 end
 
 function stateInfo()
 	return string.format(
 		'State No: %d (P%d); CTRL: %s; Type: %s; MoveType: %s; Physics: %s; Time: %d',
-		stateno(), stateownerplayerno(), boolToInt(ctrl()), statetype(), movetype(), physics(), time()-1
+		stateno(), stateowner(), boolToInt(ctrl()), statetype(), movetype(), physics(), time()-1
 	)
 end
 
@@ -179,7 +174,6 @@ local endFlag = false
 
 --function called during match via config.json CommonLua
 function loop()
-	hook.run("loop")
 	if start == nil then --match started via command line without -loadmotif flag
 		if esc() then
 			endMatch()
@@ -219,11 +213,14 @@ function loop()
 			end
 		end
 		start.turnsRecoveryInit = false
+		start.rankInit = false
 		start.dialogueInit = false
 	end
-	if winnerteam() ~= -1 and player(winnerteam()) and roundstate() == 4 and isasserted("over") then
+	if winnerteam() ~= -1 and player(winnerteam()) and roundstate() == 4 then
 		--turns life recovery
 		start.f_turnsRecovery()
+		--rank
+		start.f_rank()
 	end
 	--dialogue
 	if indialogue() then
@@ -247,7 +244,6 @@ function loop()
 		clearColor(motif.selectbgdef.bgclearcolor[1], motif.selectbgdef.bgclearcolor[2], motif.selectbgdef.bgclearcolor[3])
 		togglePostMatch(false)
 	end
-	hook.run("loop#" .. gamemode())
 	--pause menu
 	if main.pauseMenu then
 		playerBufReset()
@@ -255,17 +251,17 @@ function loop()
 	else
 		main.f_cmdInput()
 		--esc / m
-		if (esc() or (main.f_input(main.t_players, {'m'}) and not network())) and not start.challengerInit then
+		if (esc() or (main.f_input(main.t_players, {'m'})) and not network()) and not start.challengerInit then
 			if network() or gamemode('demo') or gamemode('randomtest') or (not config.EscOpensMenu and esc()) then
 				endMatch()
 			else
 				menu.f_init()
 			end
 		--demo mode
-		elseif gamemode('demo') and ((motif.attract_mode.enabled == 1 and main.credits > 0 and not sndPlaying(motif.files.snd_data, motif.attract_mode.credits_snd[1], motif.attract_mode.credits_snd[2])) or (motif.attract_mode.enabled == 0 and main.f_input(main.t_players, {'pal'})) or fighttime() >= motif.demo_mode.fight_endtime) then
+		elseif gamemode('demo') and ((motif.attract_mode.enabled == 1 and main.credits > 0 and not sndPlaying(motif.files.snd_data, motif.attract_mode.credits_snd[1], motif.attract_mode.credits_snd[2])) or (motif.attract_mode.enabled == 0 and main.f_input(main.t_players, {'pal'})) or gametime() >= motif.demo_mode.fight_endtime) then
 			endMatch()
 		--challenger
-		elseif motif.challenger_info.enabled ~= 0 and gamemode('arcade') then
+		elseif gamemode('arcade') then
 			if start.challenger > 0 then
 				start.f_challenger()
 			else
