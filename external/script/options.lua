@@ -103,7 +103,7 @@ options.t_itemname = {
 			config.AudioDucking = false
 			--config.AudioSampleRate = 44100
 			config.AutoGuard = false
-			config.BackgroundLoading = false
+			--config.BackgroundLoading = false
 			config.BarGuard = false
 			config.BarRedLife = true
 			config.BarStun = false
@@ -147,7 +147,7 @@ options.t_itemname = {
 			--config.FullscreenHeight = -1
 			config.GameWidth = 640
 			config.GameHeight = 480
-			--config.GameFramerate = 60
+			config.GameFramerate = 60
 			--config.IP = {}
 			config.LifeMul = 100
 			config.ListenPort = "7500"
@@ -209,7 +209,7 @@ options.t_itemname = {
 			setAllowDebugKeys(config.DebugKeys)
 			setAllowDebugMode(config.DebugMode)
 			setAudioDucking(config.AudioDucking)
-			--setGameSpeed(config.GameSpeed / 100)
+			setGameSpeed(config.GameFramerate)
 			setLifeShare(1, config.TeamLifeShare)
 			setLifeShare(2, config.TeamLifeShare)
 			setLifeMul(config.LifeMul / 100)
@@ -304,24 +304,23 @@ options.t_itemname = {
 		return true
 	end,
 	-- Game Speed
-	--[[
 	['gamespeed'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and config.GameSpeed < 200 then
+		if main.f_input(main.t_players, {'$F'}) and config.GameFramerate < 600 then
 			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.GameSpeed = config.GameSpeed + 1
-			setGameSpeed(config.GameSpeed / 100)
-			t.items[item].vardisplay = config.GameSpeed .. '%'
+			config.GameFramerate = config.GameFramerate + 1
+			setGameSpeed(config.GameFramerate)
+			t.items[item].vardisplay = config.GameFramerate .. ''
 			modified = true
-		elseif main.f_input(main.t_players, {'$B'}) and config.GameSpeed > 10 then
+		elseif main.f_input(main.t_players, {'$B'}) and config.GameFramerate > 1 then
 			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.GameSpeed = config.GameSpeed - 1
-			setGameSpeed(config.GameSpeed / 100)
-			t.items[item].vardisplay = config.GameSpeed .. '%'
+			config.GameFramerate = config.GameFramerate - 1
+			setGameSpeed(config.GameFramerate)
+			t.items[item].vardisplay = config.GameFramerate .. ''
 			modified = true
 		end
 		return true
 	end,
-	]]--
+
 	--Rounds to Win (Single)
 	['roundsnumsingle'] = function(t, item, cursorPosY, moveTxt)
 		if main.f_input(main.t_players, {'$F'}) and main.roundsNumSingle[1] < 10 then
@@ -1077,7 +1076,7 @@ options.t_itemname = {
 		return true
 	end,
 	--Background Loading
-	['backgroundloading'] = function(t, item, cursorPosY, moveTxt)
+	--[[['backgroundloading'] = function(t, item, cursorPosY, moveTxt)
 		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
 			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
 			if config.BackgroundLoading then
@@ -1089,7 +1088,7 @@ options.t_itemname = {
 			modified = true
 		end
 		return true
-	end,
+	end,]]
 	--HelperMax
 	['helpermax'] = function(t, item, cursorPosY, moveTxt)
 		if main.f_input(main.t_players, {'$F'}) then
@@ -1322,7 +1321,7 @@ function options.f_vardisplay(itemname)
 	if itemname == 'airamping' then return options.f_boolDisplay(config.AIRamping) end
 	if itemname == 'audioducking' then return options.f_boolDisplay(config.AudioDucking, motif.option_info.menu_valuename_enabled, motif.option_info.menu_valuename_disabled) end
 	if itemname == 'autoguard' then return options.f_boolDisplay(config.AutoGuard) end
-	if itemname == 'backgroundloading' then return options.f_boolDisplay(config.BackgroundLoading, motif.option_info.menu_valuename_enabled, motif.option_info.menu_valuename_disabled) end
+	--if itemname == 'backgroundloading' then return options.f_boolDisplay(config.BackgroundLoading, motif.option_info.menu_valuename_enabled, motif.option_info.menu_valuename_disabled) end
 	if itemname == 'bgmvolume' then return config.VolumeBgm .. '%' end
 	if itemname == 'credits' then return options.f_definedDisplay(config.Credits, {[0] = motif.option_info.menu_valuename_disabled}, config.Credits) end
 	if itemname == 'debugkeys' then return options.f_boolDisplay(config.DebugKeys, motif.option_info.menu_valuename_enabled, motif.option_info.menu_valuename_disabled) end
@@ -1330,7 +1329,7 @@ function options.f_vardisplay(itemname)
 	if itemname == 'difficulty' then return config.Difficulty end
 	if itemname == 'explodmax' then return config.MaxExplod end
 	if itemname == 'fullscreen' then return options.f_boolDisplay(config.Fullscreen) end
-	--if itemname == 'gamespeed' then return config.GameSpeed .. '%' end
+	if itemname == 'gamespeed' then return config.GameFramerate .. '' end
 	if itemname == 'guardbar' then return options.f_boolDisplay(config.BarGuard) end
 	if itemname == 'helpermax' then return config.MaxHelper end
 	if itemname == 'lifemul' then return config.LifeMul .. '%' end
