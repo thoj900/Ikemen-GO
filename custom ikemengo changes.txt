@@ -1,0 +1,62 @@
+Commits from .98 to Modified .98
+https://github.com/thoj900/Ikemen-GO/commit/25c2f552b864d6e2948fd4a4242e4a5a2969e50d
+
+OC_ex_gethitvar_nohitstate
+
+-----------
+
+hitDef_nohitstate
+hitDef_throwmultiple
+
+	example:
+	nohitstate                 bool
+	throwmultiple              int32
+	
+	NOTE: ARMOR only on if c.ghv.attr == 65
+	if c.ghv.damage != 0 {
+			if c.ss.moveType == MT_H || (c.ghv.attr == 65 && c.sf(CSF_armor) && c.ss.moveType == MT_A) || 				c.sf(CSF_nohurtstate) || c.ghv.nohitstate {
+----------------
+
+CSF_armor
+CSF_nohurtstate
+
+	example:
+	func (c *Char) hitAdd(h int32) {
+	c.hitCount += h
+	c.uniqHitCount += h
+	if !c.sf(CSF_armor) && !c.sf(CSF_nohurtstate) && !c.ghv.nohitstate && len(c.targets) > 0 {
+-------------------
+
+Summary:
+armor = clash armor
+nohurtstate = armor for everything just not clash
+nohitstate = paremeter on hitdef so that hitdef does not change enemy into a hitstate
+throwmultiple = paremeter on hitdef that allows multiple targets to be acquired during Throw type attack
+
+REMEMBER: CHECK COMPILER, COMPILER_FUNCTIONS, AND SCRIPT GO FILES FOR NEW FEATURES ADDED
+====================================================================================================
+
+LUA COMMIT CHANGES
+https://github.com/thoj900/Ikemen-GO/commit/2b529ce9647506a4b311d53465473f3c64cdd32b
+
+Rightside latest:
+Main Lua
+	Line 1631 - free = true for unlocking condition
+	Line 2103 - condition for unlocking
+	Line 2359 to 2464 - Add custom gamemodes
+	Line 2776 to Line 2777 - Don't exit game after winning gamemode single playthrough, go to vs screen instead
+	2865 to 2881 - just blocking out certain game modes
+	2977 to 3087 - custome gamemodes
+	2105 and 3107 - remove tag selection from simul mode
+	3116 to 3172 - other new game modes
+	Line 261 to 274 - Disable AI partner in Simul mode if not CPU
+	Line 320-341 - win conditions depending on how each side chooses a teammode
+	922 = for boss types, spot not selectable on screen if already chose a monster in a teammode
+	947 - same above
+	973 - same above
+	995 - same above
+	1689 to 1697 - If you select boss already in team first, then it stops you from selecting more
+	1701 to 08 - i think this is for same above
+	2598 to 2602 - make sure random cell does not show characters you did not unlock, and do not show bosses
+	2666 to 67 - if boss already selected, stop more selection
+	2680-2691 - remove teamdupe stuff
