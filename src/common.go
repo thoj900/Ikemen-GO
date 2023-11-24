@@ -90,6 +90,11 @@ func MaxF(arg ...float32) (max float32) {
 	}
 	return
 }
+
+func ClampF(x, a, b float32) float32 {
+	return MaxF(a, MinF(x, b))
+}
+
 func Abs(i int32) int32 {
 	if i < 0 {
 		return -i

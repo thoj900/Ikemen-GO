@@ -73,6 +73,10 @@ func (c *Compiler) assertSpecial(is IniSection, sc *StateControllerBase, _ int8)
 			switch strings.ToLower(data) {
 			case "nostandguard":
 				sc.add(assertSpecial_flag, sc.iToExp(int32(CSF_nostandguard)))
+			case "armor":
+				sc.add(assertSpecial_flag, sc.iToExp(int32(CSF_armor)))
+			case "nohurtstate":
+				sc.add(assertSpecial_flag, sc.iToExp(int32(CSF_nohurtstate)))
 			case "nocrouchguard":
 				sc.add(assertSpecial_flag, sc.iToExp(int32(CSF_nocrouchguard)))
 			case "noairguard":
@@ -1217,6 +1221,10 @@ func (c *Compiler) hitDefSub(is IniSection,
 		hitDef_nochainid, VT_Int, 2, false); err != nil {
 		return err
 	}
+	if err := c.paramValue(is, sc, "nohitstate",
+		hitDef_nohitstate, VT_Bool, 1, false); err != nil {
+		return err
+	}
 	if err := c.paramValue(is, sc, "kill",
 		hitDef_kill, VT_Bool, 1, false); err != nil {
 		return err
@@ -1231,6 +1239,10 @@ func (c *Compiler) hitDefSub(is IniSection,
 	}
 	if err := c.paramValue(is, sc, "hitonce",
 		hitDef_hitonce, VT_Bool, 1, false); err != nil {
+		return err
+	}
+	if err := c.paramValue(is, sc, "throwmultiple",
+		hitDef_throwmultiple, VT_Bool, 1, false); err != nil {
 		return err
 	}
 	if err := c.paramValue(is, sc, "air.juggle",
@@ -1899,23 +1911,7 @@ func (c *Compiler) varSetSub(is IniSection,
 			}
 		}
 		if v || fv {
-			if len(ve) == 2 && ve[0] == OC_int8 && int8(ve[1]) >= 0 &&
-				(v && ve[1] < NumVar || fv && ve[1] < NumFvar) {
-				if oc == OC_st_var {
-					if v {
-						oc = OC_st_var0 + ve[1]
-					} else {
-						oc = OC_st_fvar0 + ve[1]
-					}
-				} else {
-					if v {
-						oc = OC_st_var0add + ve[1]
-					} else {
-						oc = OC_st_fvar0add + ve[1]
-					}
-				}
-				ve = nil
-			} else if oc == OC_st_var {
+			if oc == OC_st_var {
 				if v {
 					oc = OC_st_var
 				} else {
@@ -1967,66 +1963,35 @@ func (c *Compiler) varSetSub(is IniSection,
 		if err != nil {
 			return err
 		}
-		_else := false
 		if !bv.IsNone() {
-			i := bv.ToI()
-			if i >= 0 && (!sys && v && i < int32(NumVar) ||
-				!sys && fv && i < int32(NumFvar) || sys && v && i < int32(NumSysVar) ||
-				sys && fv && i < int32(NumSysFvar)) {
+			be.appendValue(bv)
+		}
+		if oc == OC_st_var {
+			if sys {
 				if v {
-					if oc == OC_st_var {
-						oc = OC_st_var0 + OpCode(i)
-					} else {
-						oc = OC_st_var0add + OpCode(i)
-					}
-					if sys {
-						oc += NumVar
-					}
+					oc = OC_st_sysvar
 				} else {
-					if oc == OC_st_var {
-						oc = OC_st_fvar0 + OpCode(i)
-					} else {
-						oc = OC_st_fvar0add + OpCode(i)
-					}
-					if sys {
-						oc += NumFvar
-					}
+					oc = OC_st_sysfvar
 				}
 			} else {
-				be.appendValue(bv)
-				_else = true
+				if v {
+					oc = OC_st_var
+				} else {
+					oc = OC_st_fvar
+				}
 			}
 		} else {
-			_else = true
-		}
-		if _else {
-			if oc == OC_st_var {
-				if sys {
-					if v {
-						oc = OC_st_sysvar
-					} else {
-						oc = OC_st_sysfvar
-					}
+			if sys {
+				if v {
+					oc = OC_st_sysvaradd
 				} else {
-					if v {
-						oc = OC_st_var
-					} else {
-						oc = OC_st_fvar
-					}
+					oc = OC_st_sysfvaradd
 				}
 			} else {
-				if sys {
-					if v {
-						oc = OC_st_sysvaradd
-					} else {
-						oc = OC_st_sysfvaradd
-					}
+				if v {
+					oc = OC_st_varadd
 				} else {
-					if v {
-						oc = OC_st_varadd
-					} else {
-						oc = OC_st_fvaradd
-					}
+					oc = OC_st_fvaradd
 				}
 			}
 		}

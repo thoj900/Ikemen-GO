@@ -357,6 +357,8 @@ type System struct {
 	maxBgmVolume    int
 	stereoEffects   bool
 	panningRange    float32
+	loopBreak       bool
+	loopContinue    bool
 }
 
 type Window struct {
@@ -1123,12 +1125,8 @@ func (s *System) action(x, y *float32, scl float32) (leftest, rightest,
 	s.drawc2mtk = s.drawc2mtk[:0]
 	s.drawwh = s.drawwh[:0]
 	s.clsnText = nil
-	s.cam.Update(scl, *x, *y)
 	var cvmin, cvmax, highest, lowest float32 = 0, 0, 0, 0
 	leftest, rightest = *x, *x
-	if s.cam.verticalfollow > 0 {
-		lowest = s.cam.ScreenPos[1]
-	}
 	if s.tickFrame() {
 		s.xmin = s.cam.ScreenPos[0] + s.cam.Offset[0] + s.screenleft
 		s.xmax = s.cam.ScreenPos[0] + s.cam.Offset[0] +
@@ -1191,14 +1189,6 @@ func (s *System) action(x, y *float32, scl float32) (leftest, rightest,
 			s.superanim = nil
 		}
 	}
-	for i, pr := range s.projs {
-		for j, p := range pr {
-			if p.id >= 0 {
-				s.projs[i][j].cueDraw(s.cgi[i].ver[0] != 1, i)
-			}
-		}
-	}
-	s.charList.cueDraw()
 	explUpdate := func(edl *[len(s.chars)][]int, drop bool) {
 		for i, el := range *edl {
 			for j := len(el) - 1; j >= 0; j-- {
@@ -2101,7 +2091,16 @@ func (s *System) fight() (reload bool) {
 				fin = true
 			}
 		}
+		// If frame is ready to tick and not paused
+		if s.tickFrame() && (s.super <= 0 || !s.superpausebg) &&
+			(s.pause <= 0 || !s.pausebg) {
+			// Update stage
+			s.stage.action()
+		}
 
+		// Update game state
+		newx, newy = x, y
+		l, r, sclmul = s.action(&newx, &newy, scl)
 		// Update camera
 		scl = s.cam.ScaleBound(scl, sclmul)
 		tmp := (float32(s.gameWidth) / 2) / scl
@@ -2114,18 +2113,17 @@ func (s *System) fight() (reload bool) {
 			x = float32(math.Ceil(float64(x)*4-0.5) / 4)
 		}
 		y = s.cam.YBound(scl, newy)
+		s.cam.Update(scl, x, y)
 
-		// If frame is ready to tick and not paused
-		if s.tickFrame() && (s.super <= 0 || !s.superpausebg) &&
-			(s.pause <= 0 || !s.pausebg) {
-			// Update stage
-			s.stage.action()
+		// Update clsn
+		for i, pr := range s.projs {
+			for j, p := range pr {
+				if p.id >= 0 {
+					s.projs[i][j].cueDraw(s.cgi[i].ver[0] != 1, i)
+				}
+			}
 		}
-
-		// Update game state
-		newx, newy = x, y
-		l, r, sclmul = s.action(&newx, &newy, scl)
-
+		s.charList.cueDraw()
 		// F4 pressed to restart round
 		if s.roundResetFlg && !s.postMatchFlg {
 			reset()
