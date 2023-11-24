@@ -3443,7 +3443,7 @@ func (l *Lifebar) step() {
 		return
 	}
 	for ti, tm := range sys.tmode {
-		if tm == TM_Tag || tm == TM_Simul {
+		if tm == TM_Tag {
 			for i, v := range l.order[ti] {
 				if sys.teamLeader[sys.chars[v][0].teamside] == sys.chars[v][0].playerNo && sys.chars[v][0].alive() {
 					if i != 0 {

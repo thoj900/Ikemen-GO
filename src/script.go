@@ -1785,7 +1785,9 @@ func systemScriptInit(l *lua.LState) {
 		return 0
 	})
 	luaRegister(l, "setGameSpeed", func(*lua.LState) int {
-		sys.gameSpeed = float32(numArg(l, 1)) / float32(FPS)
+		if sys.gameSpeed != 100 { //not speedtest
+			sys.gameSpeed = float32(numArg(l, 1))
+		}
 		return 0
 	})
 	luaRegister(l, "setGuardPoints", func(*lua.LState) int {
@@ -2715,6 +2717,8 @@ func triggerFunctions(l *lua.LState) {
 			ln = lua.LNumber(c.size.air.back)
 		case "size.air.front":
 			ln = lua.LNumber(c.size.air.front)
+		case "size.z.width":
+			ln = lua.LNumber(c.size.z.width)
 		case "size.height":
 			ln = lua.LNumber(c.size.height)
 		case "size.attack.dist":
@@ -2741,10 +2745,6 @@ func triggerFunctions(l *lua.LState) {
 			ln = lua.LNumber(c.size.draw.offset[0])
 		case "size.draw.offset.y":
 			ln = lua.LNumber(c.size.draw.offset[1])
-		case "size.z.width":
-			ln = lua.LNumber(c.size.z.width)
-		case "size.z.enable":
-			ln = lua.LNumber(Btoi(c.size.z.enable))
 		case "velocity.walk.fwd.x":
 			ln = lua.LNumber(c.gi().velocity.walk.fwd)
 		case "velocity.walk.back.x":
@@ -3018,8 +3018,6 @@ func triggerFunctions(l *lua.LState) {
 			ln = lua.LNumber(c.ghv.hitpower)
 		case "guardpower":
 			ln = lua.LNumber(c.ghv.guardpower)
-		case "nohitstate":
-			ln = lua.LNumber(Btoi(c.ghv.nohitstate))
 		default:
 			l.RaiseError("\nInvalid argument: %v\n", strArg(l, 1))
 		}
@@ -3624,10 +3622,6 @@ func triggerFunctions(l *lua.LState) {
 		switch strArg(l, 1) {
 		case "nostandguard":
 			l.Push(lua.LBool(sys.debugWC.sf(CSF_nostandguard)))
-		case "armor":
-			l.Push(lua.LBool(sys.debugWC.sf(CSF_armor)))
-		case "nohurtstate":
-			l.Push(lua.LBool(sys.debugWC.sf(CSF_nohurtstate)))
 		case "nocrouchguard":
 			l.Push(lua.LBool(sys.debugWC.sf(CSF_nocrouchguard)))
 		case "noairguard":

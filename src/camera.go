@@ -8,9 +8,8 @@ type stageCamera struct {
 	boundright     int32
 	boundhigh      int32
 	verticalfollow float32
-	tensionhigh    int32
-	tensionlow     int32
 	tension        int32
+	tensionlow     int32 //TODO: not implemented
 	floortension   int32
 	overdrawhigh   int32 //TODO: not implemented
 	overdrawlow    int32
@@ -24,14 +23,13 @@ type stageCamera struct {
 	startzoom      float32
 	zoomin         float32
 	zoomout        float32
-	ytensionenable bool
 }
 
 func newStageCamera() *stageCamera {
 	return &stageCamera{verticalfollow: 0.2, tension: 50,
 		cuthigh: math.MinInt32, cutlow: math.MinInt32,
 		localcoord: [...]int32{320, 240}, localscl: float32(sys.gameWidth / 320),
-		ztopscale: 1, startzoom: 1, zoomin: 1, zoomout: 1, ytensionenable: false}
+		ztopscale: 1, startzoom: 1, zoomin: 1, zoomout: 1}
 }
 
 type Camera struct {
@@ -47,7 +45,6 @@ type Camera struct {
 	zoff                        float32
 	screenZoff                  float32
 	halfWidth                   float32
-	CameraZoomYBound                float32
 }
 
 func newCamera() *Camera {
@@ -106,9 +103,8 @@ func (c *Camera) ScaleBound(scl, sclmul float32) float32 {
 	return 1
 }
 func (c *Camera) XBound(scl, x float32) float32 {
-	return ClampF(x,
-		c.boundL-c.halfWidth+c.halfWidth/scl,
-		c.boundR+c.halfWidth-c.halfWidth/scl)
+	return MaxF(c.boundL-c.halfWidth+c.halfWidth/scl,
+		MinF(c.boundR+c.halfWidth-c.halfWidth/scl, x))
 }
 func (c *Camera) YBound(scl, y float32) float32 {
 	if c.verticalfollow <= 0 {
@@ -163,26 +159,20 @@ func (c *Camera) action(x, y *float32, leftest, rightest, lowest, highest,
 		}
 	}
 	*x += vx
-	ftension, vfollow := float32(c.floortension), c.verticalfollow
- 	if c.ytensionenable {
- 		ftension = (240/(float32(sys.gameWidth)/float32(c.localcoord[0])) - float32(c.tensionhigh)) * c.localscl
- 		vfollow = 1
- 	}
- 	ftension *= c.localscl
-	 if ftension < 0 {
-		ftension += 240*2 - float32(c.localcoord[1])*c.localscl - 240*c.Scale
+	if lowest >= highest {
+		ftension := float32(c.floortension) * c.localscl
 		if ftension < 0 {
-			ftension = 0
+			ftension += 240*2 - float32(c.localcoord[1])*c.localscl - 240*c.Scale
+			if ftension < 0 {
+				ftension = 0
+			}
 		}
-	}
 		if highest < -ftension {
-			*y = (highest + ftension) * Pow(vfollow,
-				MinF(1, 1/Pow(c.Scale, 4)))
-		} else if lowest > 0 {
-			*y = lowest * Pow(vfollow,
+			*y = (highest + ftension) * Pow(c.verticalfollow,
 				MinF(1, 1/Pow(c.Scale, 4)))
 		} else {
-			*y = c.Pos[1] - c.CameraZoomYBound
+			*y = 0
+		}
 	}
 	tmp = (rightest + sys.screenright) - (leftest - sys.screenleft) -
 		float32(sys.gameWidth-320)

@@ -71,7 +71,7 @@ const (
 type OpCode byte
 
 const (
-	OC_var OpCode = iota
+	OC_var OpCode = iota + 110
 	OC_sysvar
 	OC_fvar
 	OC_sysfvar
@@ -331,7 +331,7 @@ const (
 	OC_const_stage_constants
 )
 const (
-	OC_st_var OpCode = iota
+	OC_st_var OpCode = iota + OC_var*2
 	OC_st_sysvar
 	OC_st_fvar
 	OC_st_sysfvar
@@ -339,6 +339,14 @@ const (
 	OC_st_sysvaradd
 	OC_st_fvaradd
 	OC_st_sysfvaradd
+	OC_st_var0        = OC_var0
+	OC_st_sysvar0     = OC_sysvar0
+	OC_st_fvar0       = OC_fvar0
+	OC_st_sysfvar0    = OC_sysfvar0
+	OC_st_var0add     = OC_var + OC_var0
+	OC_st_sysvar0add  = OC_var + OC_sysvar0
+	OC_st_fvar0add    = OC_var + OC_fvar0
+	OC_st_sysfvar0add = OC_var + OC_sysfvar0
 )
 const (
 	OC_ex_p2dist_x OpCode = iota
@@ -387,7 +395,6 @@ const (
 	OC_ex_gethitvar_chainid
 	OC_ex_gethitvar_guarded
 	OC_ex_gethitvar_isbound
-	OC_ex_gethitvar_nohitstate
 	OC_ex_gethitvar_fall
 	OC_ex_gethitvar_fall_damage
 	OC_ex_gethitvar_fall_xvel
@@ -470,10 +477,10 @@ const (
 	OC_ex_jugglepoints
 )
 const (
-	NumVar     = 60
-	NumSysVar  = 5
-	NumFvar    = 40
-	NumSysFvar = 5
+	NumVar     = OC_sysvar0 - OC_var0
+	NumSysVar  = OC_fvar0 - OC_sysvar0
+	NumFvar    = OC_sysfvar0 - OC_fvar0
+	NumSysFvar = OC_var - OC_sysfvar0
 )
 
 type StringPool struct {
@@ -1267,6 +1274,13 @@ func (be BytecodeExp) run(c *Char) BytecodeValue {
 		case OC_localvar:
 			sys.bcStack.Push(sys.bcVar[uint8(be[i])])
 			i++
+		default:
+			vi := be[i-1]
+			if vi < OC_sysvar0+NumSysVar {
+				sys.bcStack.PushI(c.ivar[vi-OC_var0])
+			} else {
+				sys.bcStack.PushF(c.fvar[vi-OC_fvar0])
+			}
 		}
 		c = oc
 	}
@@ -1299,6 +1313,24 @@ func (be BytecodeExp) run_st(c *Char, i *int) {
 	case OC_st_sysfvaradd:
 		v := sys.bcStack.Pop().ToF()
 		*sys.bcStack.Top() = c.sysFvarAdd(sys.bcStack.Top().ToI(), v)
+	default:
+		vi := be[*i-1]
+		if vi < OC_st_sysvar0+NumSysVar {
+			c.ivar[vi-OC_st_var0] = sys.bcStack.Top().ToI()
+			sys.bcStack.Top().SetI(c.ivar[vi-OC_st_var0])
+		} else if vi < OC_st_sysfvar0+NumSysFvar {
+			c.fvar[vi-OC_st_fvar0] = sys.bcStack.Top().ToF()
+			sys.bcStack.Top().SetF(c.fvar[vi-OC_st_fvar0])
+		} else if vi < OC_st_sysvar0add+NumSysVar {
+			c.ivar[vi-OC_st_var0add] += sys.bcStack.Top().ToI()
+			sys.bcStack.Top().SetI(c.ivar[vi-OC_st_var0add])
+		} else if vi < OC_st_sysfvar0add+NumSysFvar {
+			c.fvar[vi-OC_st_fvar0add] += sys.bcStack.Top().ToF()
+			sys.bcStack.Top().SetF(c.fvar[vi-OC_st_fvar0add])
+		} else {
+			sys.errLog.Printf("%v\n", be[*i-1])
+			c.panic()
+		}
 	}
 }
 func (be BytecodeExp) run_const(c *Char, i *int, oc *Char) {
@@ -1932,15 +1964,6 @@ type StateBlock struct {
 	trigger             BytecodeExp
 	elseBlock           *StateBlock
 	ctrls               []StateController
-	// Loop fields
-	loopBlock        bool
-	nestedInLoop     bool
-	forLoop          bool
-	forAssign        bool
-	forCtrlVar       varAssign
-	forExpression    [3]BytecodeExp
-	forBegin, forEnd int32
-	forIncrement     int32
 }
 
 func newStateBlock() *StateBlock {
@@ -1966,93 +1989,22 @@ func (b StateBlock) Run(c *Char, ps []int32) (changeState bool) {
 		}
 	}
 	sys.workingChar = c
-	if b.loopBlock {
-		if b.forLoop {
-			if b.forAssign {
-				// Initial assign to control variable
-				b.forCtrlVar.Run(c, ps)
-				b.forBegin = sys.bcVar[b.forCtrlVar.vari].ToI()
-			} else {
-				b.forBegin = b.forExpression[0].evalI(c)
-			}
-			b.forEnd, b.forIncrement = b.forExpression[1].evalI(c), b.forExpression[2].evalI(c)
+	if len(b.trigger) > 0 && !b.trigger.evalB(c) {
+		if b.elseBlock != nil {
+			return b.elseBlock.Run(c, ps)
 		}
-		// Start loop
-		interrupt := false
-		for {
-			// Decide if while loop should be stopped
-			if !b.forLoop {
-				// While loop needs to eval conditional indefinitely until it returns false
-				if len(b.trigger) > 0 && !b.trigger.evalB(c) {
-					interrupt = true
-				}
-			}
-			// Run state controllers
-			if !interrupt {
-				for _, sc := range b.ctrls {
-					switch sc.(type) {
-					case StateBlock:
-					default:
-						if !b.ctrlsIgnorehitpause && c.hitPause() {
-							continue
-						}
-					}
-					if sc.Run(c, ps) {
-						if sys.loopBreak {
-							sys.loopBreak = false
-							interrupt = true
-							break
-						}
-						if sys.loopContinue {
-							sys.loopContinue = false
-							break
-						}
-						return true
-					}
-				}
-			}
-			// Decide if for loop should be stopped
-			if b.forLoop {
-				// Update loop count
-				if b.forAssign {
-					b.forBegin = sys.bcVar[b.forCtrlVar.vari].ToI() + b.forIncrement
-				} else {
-					b.forBegin += b.forIncrement
-				}
-				if b.forIncrement > 0 {
-					if b.forBegin > b.forEnd {
-						interrupt = true
-					}
-				} else if b.forBegin < b.forEnd {
-					interrupt = true
-				}
-				// Update control variable if loop should keep going
-				if b.forAssign && !interrupt {
-					sys.bcVar[b.forCtrlVar.vari].SetI(b.forBegin)
-				}
-			}
-			if interrupt {
-				break
+		return false
+	}
+	for _, sc := range b.ctrls {
+		switch sc.(type) {
+		case StateBlock:
+		default:
+			if !b.ctrlsIgnorehitpause && c.hitPause() {
+				continue
 			}
 		}
-	} else {
-		if len(b.trigger) > 0 && !b.trigger.evalB(c) {
-			if b.elseBlock != nil {
-				return b.elseBlock.Run(c, ps)
-			}
-			return false
-		}
-		for _, sc := range b.ctrls {
-			switch sc.(type) {
-			case StateBlock:
-			default:
-				if !b.ctrlsIgnorehitpause && c.hitPause() {
-					continue
-				}
-			}
-			if sc.Run(c, ps) {
-				return true
-			}
+		if sc.Run(c, ps) {
+			return true
 		}
 	}
 	if b.persistentIndex >= 0 {
@@ -2078,20 +2030,6 @@ func (va varAssign) Run(c *Char, _ []int32) (changeState bool) {
 	return false
 }
 
-type LoopBreak struct{}
-
-func (lb LoopBreak) Run(c *Char, _ []int32) (stop bool) {
-	sys.loopBreak = true
-	return true
-}
-
-type LoopContinue struct{}
-
-func (lc LoopContinue) Run(c *Char, _ []int32) (stop bool) {
-	sys.loopContinue = true
-	return true
-}
-
 type StateControllerBase []byte
 
 func newStateControllerBase() *StateControllerBase {
@@ -2101,16 +2039,14 @@ func (StateControllerBase) beToExp(be ...BytecodeExp) []BytecodeExp {
 	return be
 }
 
-/*
-	func (StateControllerBase) fToExp(f ...float32) (exp []BytecodeExp) {
-		for _, v := range f {
-			var be BytecodeExp
-			be.appendValue(BytecodeFloat(v))
-			exp = append(exp, be)
-		}
-		return
+/*func (StateControllerBase) fToExp(f ...float32) (exp []BytecodeExp) {
+	for _, v := range f {
+		var be BytecodeExp
+		be.appendValue(BytecodeFloat(v))
+		exp = append(exp, be)
 	}
-*/
+	return
+}*/
 func (StateControllerBase) iToExp(i ...int32) (exp []BytecodeExp) {
 	for _, v := range i {
 		var be BytecodeExp
@@ -3769,7 +3705,6 @@ const (
 	hitDef_chainid
 	hitDef_nochainid
 	hitDef_kill
-	hitDef_nohitstate
 	hitDef_guard_kill
 	hitDef_fall_kill
 	hitDef_hitonce
@@ -3841,7 +3776,6 @@ const (
 	hitDef_guardpoints
 	hitDef_redlife
 	hitDef_score
-	hitDef_throwmultiple
 	hitDef_last = iota + afterImage_last + 1 - 1
 	hitDef_redirectid
 )
@@ -3884,8 +3818,6 @@ func (sc hitDef) runSub(c *Char, hd *HitDef, id byte, exp []BytecodeExp) bool {
 		if len(exp) > 1 {
 			hd.nochainid[1] = exp[1].evalI(c)
 		}
-	case hitDef_nohitstate:
-		hd.nohitstate = exp[0].evalB(c)
 	case hitDef_kill:
 		hd.kill = exp[0].evalB(c)
 	case hitDef_guard_kill:
@@ -3894,8 +3826,6 @@ func (sc hitDef) runSub(c *Char, hd *HitDef, id byte, exp []BytecodeExp) bool {
 		hd.fall.kill = exp[0].evalB(c)
 	case hitDef_hitonce:
 		hd.hitonce = Btoi(exp[0].evalB(c))
-	case hitDef_throwmultiple:
-		hd.throwmultiple = Btoi(exp[0].evalB(c))
 	case hitDef_air_juggle:
 		hd.air_juggle = exp[0].evalI(c)
 	case hitDef_getpower:
@@ -7674,32 +7604,32 @@ func (sc createPlatform) Run(schara *Char, _ []int32) bool {
 
 	StateControllerBase(sc).run(schara, func(id byte, exp []BytecodeExp) bool {
 		switch id {
-		case createPlatform_id:
-			plat.id = exp[0].evalI(schara)
-		case createPlatform_name:
-			plat.name = string(*(*[]byte)(unsafe.Pointer(&exp[0])))
-		case createPlatform_pos:
-			plat.pos[0] = exp[0].evalF(schara)
-			plat.pos[1] = exp[1].evalF(schara)
-		case createPlatform_size:
-			plat.size[0] = exp[0].evalI(schara)
-			plat.size[1] = exp[1].evalI(schara)
-		case createPlatform_offset:
-			customOffset = true
-			plat.offset[0] = exp[0].evalI(schara)
-			plat.offset[1] = exp[1].evalI(schara)
-		case createPlatform_activeTime:
-			plat.activeTime = exp[0].evalI(schara)
-		case createPlatform_redirectid:
-			if rid := sys.playerID(exp[0].evalI(schara)); rid != nil {
-				chara = rid
-			} else {
-				return false
-			}
+			case createPlatform_id:
+				plat.id = exp[0].evalI(schara)
+			case createPlatform_name:
+				plat.name = string(*(*[]byte)(unsafe.Pointer(&exp[0])))
+			case createPlatform_pos:
+				plat.pos[0] = exp[0].evalF(schara)
+				plat.pos[1] = exp[1].evalF(schara)
+			case createPlatform_size:
+				plat.size[0] = exp[0].evalI(schara)
+				plat.size[1] = exp[1].evalI(schara)
+			case createPlatform_offset:
+				customOffset = true
+				plat.offset[0] = exp[0].evalI(schara)
+				plat.offset[1] = exp[1].evalI(schara)
+			case createPlatform_activeTime:
+				plat.activeTime = exp[0].evalI(schara)
+			case createPlatform_redirectid:
+				if rid := sys.playerID(exp[0].evalI(schara)); rid != nil {
+					chara = rid
+				} else {
+					return false
+				}
 		}
 		return true
 	})
-
+	
 	if customOffset == false {
 		if plat.size[0] != 0 {
 			plat.offset[0] = plat.size[0] / 2
@@ -7736,10 +7666,10 @@ type StateBytecode struct {
 func newStateBytecode(pn int) *StateBytecode {
 	sb := &StateBytecode{
 		stateType: ST_S,
-		moveType:  MT_I,
-		physics:   ST_N,
-		playerNo:  pn,
-		block:     *newStateBlock(),
+		moveType: MT_I,
+		physics: ST_N,
+		playerNo: pn,
+		block: *newStateBlock(),
 	}
 	return sb
 }

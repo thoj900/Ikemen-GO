@@ -611,14 +611,16 @@ type Stage struct {
 }
 
 func newStage(def string) *Stage {
-	s := &Stage{def: def, leftbound: -1000,
-		rightbound: 1000, screenleft: 15, screenright: 15,
+	s := &Stage{def: def, leftbound: float32(math.NaN()),
+		rightbound: float32(math.NaN()), screenleft: 15, screenright: 15,
 		zoffsetlink: -1, resetbg: true, localscl: 1, scale: [...]float32{1, 1},
 		bgmratiolife: 30, stageCamera: *newStageCamera(),
 		constants: make(map[string]float32), p1p3dist: 25}
 	s.sdw.intensity = 128
 	s.sdw.color = 0x808080
 	s.sdw.yscale = 0.4
+	s.sdw.fadeend = math.MinInt32
+	s.sdw.fadebgn = math.MinInt32
 	s.p[0].startx, s.p[1].startx = -70, 70
 	return s
 }
@@ -746,9 +748,9 @@ func loadStage(def string, main bool) (*Stage, error) {
 		sec[0].ReadI32("boundright", &s.stageCamera.boundright)
 		sec[0].ReadI32("boundhigh", &s.stageCamera.boundhigh)
 		sec[0].ReadF32("verticalfollow", &s.stageCamera.verticalfollow)
+		sec[0].ReadI32("tension", &s.stageCamera.tension)
 		sec[0].ReadI32("tensionlow", &s.stageCamera.tensionlow) //TODO: not implemented
 		sec[0].ReadI32("floortension", &s.stageCamera.floortension)
-		sec[0].ReadI32("tension", &s.stageCamera.tension)
 		sec[0].ReadI32("overdrawhigh", &s.stageCamera.overdrawhigh) //TODO: not implemented
 		sec[0].ReadI32("overdrawlow", &s.stageCamera.overdrawlow)
 		sec[0].ReadI32("cuthigh", &s.stageCamera.cuthigh) //TODO: not implemented
@@ -764,10 +766,11 @@ func loadStage(def string, main bool) (*Stage, error) {
 		} else {
 			s.stageCamera.zoomout = sys.cam.ZoomMin
 		}
-		if sec[0].ReadI32("tensionlow", &s.stageCamera.tensionlow) {
-			s.stageCamera.ytensionenable = true
-			sec[0].ReadI32("tensionhigh", &s.stageCamera.tensionhigh)
+		var tmp int32
+		if sec[0].ReadI32("tensionhigh", &tmp) {
+			s.stageCamera.floortension = int32(240/(float32(sys.gameWidth)/float32(s.stageCamera.localcoord[0]))) - tmp
 		}
+		sec[0].ReadI32("boundlow", &boundlow)
 	}
 	reflect := true
 	if sec := defmap["shadow"]; len(sec) > 0 {
