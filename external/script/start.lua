@@ -258,20 +258,20 @@ function start.f_remapAI(ai)
 			else
 				setCom(side, ai or start.f_difficulty(side, offset))
 			end
-		--elseif start.p[side].teamMode == 1 then --Simul
-			--if not t_ex[side] then
-				--if (main.t_pIn[side] == side and not main.cpuSide[side] and not main.coop) or start.challenger > 0 then
-					--setCom(side, 0)
-				--else
-					--setCom(side, ai or start.f_difficulty(side, offset))
-				--end
-			--end
-			--for i = side + 2, #start.p[side].t_selected * 2 do
-				--if not t_ex[i] and (i - 1) % 2 + 1 == side then
-					--remapInput(i, side) --P3/5/7 => P1 controls, P4/6/8 => P2 controls
-					--setCom(i, ai or start.f_difficulty(i, offset))
-				--end
-			--end
+		elseif start.p[side].teamMode == 1 then --Simul
+			if not t_ex[side] then
+				if (main.t_pIn[side] == side and not main.cpuSide[side] and not main.coop) or start.challenger > 0 then
+					setCom(side, 0)
+				else
+					setCom(side, ai or start.f_difficulty(side, offset))
+				end
+			end
+			for i = side + 2, #start.p[side].t_selected * 2 do
+				if not t_ex[i] and (i - 1) % 2 + 1 == side then
+					remapInput(i, side) --P3/5/7 => P1 controls, P4/6/8 => P2 controls
+					setCom(i, ai or start.f_difficulty(i, offset))
+				end
+			end
 		else --Tag
 			for i = side, #start.p[side].t_selected * 2 do
 				if not t_ex[i] and (i - 1) % 2 + 1 == side then
@@ -317,28 +317,10 @@ function start.f_setRounds(roundTime, t_rounds)
 		else
 			if side == 2 and main.charparam.rounds and start.f_getCharData(start.p[2].t_selected[1].ref).rounds ~= nil then --round num assigned as character param
 				setMatchWins(side, start.f_getCharData(start.p[2].t_selected[1].ref).rounds)
-			elseif start.p[1].teamMode == 3 and start.p[2].teamMode == 0 then --default rounds num (Tag)
-				setMatchWins(side, main.matchWins.single[side])
-			elseif start.p[1].teamMode == 3 and start.p[2].teamMode == 1 then --default rounds num (Tag)
+			elseif start.p[side].teamMode == 1 then --default rounds num (Simul)
+				setMatchWins(side, main.matchWins.simul[side])
+			elseif start.p[side].teamMode == 3 then --default rounds num (Tag)
 				setMatchWins(side, main.matchWins.tag[side])
-			elseif start.p[1].teamMode == 3 and start.p[2].teamMode == 3 then --default rounds num (Tag)
-				setMatchWins(side, main.matchWins.tag[side])
-			elseif start.p[2].teamMode == 3 and start.p[1].teamMode == 0 then --default rounds num (Tag)
-				setMatchWins(side, main.matchWins.single[side])
-			elseif start.p[2].teamMode == 3 and start.p[1].teamMode == 1 then --default rounds num (Tag)
-				setMatchWins(side, main.matchWins.tag[side])
-			elseif start.p[1].teamMode == 1 and start.p[2].teamMode == 1 then --default rounds num (Tag)
-				setMatchWins(side, main.matchWins.tag[side])
-			elseif start.p[1].teamMode == 0 and start.p[2].teamMode == 1 then --default rounds num (Tag)
-				setMatchWins(side, main.matchWins.single[side])
-			elseif start.p[2].teamMode == 0 and start.p[1].teamMode == 1 then --default rounds num (Tag)
-				setMatchWins(side, main.matchWins.single[side])
-			elseif start.p[1].teamMode == 0 and start.p[2].teamMode == 0 then --default rounds num (Tag)
-				setMatchWins(side, main.matchWins.single[side])
-			--elseif start.p[side].teamMode == 1 then --default rounds num (Simul)
-				--setMatchWins(side, main.matchWins.simul[side])
-			--elseif start.p[side].teamMode == 3 then --default rounds num (Tag)
-				--setMatchWins(side, main.matchWins.tag[side])
 			else --default rounds num (Single)
 				setMatchWins(side, main.matchWins.single[side])
 			end
@@ -919,12 +901,8 @@ function start.f_cellMovement(selX, selY, cmd, side, snd, dir)
 			end
 			if dir ~= nil then
 				found, selX = start.f_searchEmptyBoxes(selX, selY, side, -1)
-			elseif (start.t_grid[selY + 1][selX + 1].char ~= nil or motif.select_info.moveoveremptyboxes == 1) and (config.TeamDuplicates or start.t_grid[selY + 1][selX + 1].char == 'randomselect' or not t_reservedChars[side][start.t_grid[selY + 1][selX + 1].char_ref]) and start.t_grid[selY + 1][selX + 1].hidden ~= 2 
-			and 
-				(((start.t_grid[selY + 1][selX + 1].char == 'BAGAN' or start.t_grid[selY + 1][selX + 1].char ~= 'BAGAN') and main.f_tableLength(start.p[side].t_selected)==0) or
-				((start.t_grid[selY + 1][selX + 1].char ~= 'BAGAN' and start.t_grid[selY + 1][selX + 1].char ~= 'BiollanteRose/BiollanteRose_unotag.def') and main.f_tableLength(start.p[side].t_selected)>0))
-			then
-			break
+			elseif (start.t_grid[selY + 1][selX + 1].char ~= nil or motif.select_info.moveoveremptyboxes == 1) and (config.TeamDuplicates or start.t_grid[selY + 1][selX + 1].char == 'randomselect' or not t_reservedChars[side][start.t_grid[selY + 1][selX + 1].char_ref]) and start.t_grid[selY + 1][selX + 1].hidden ~= 2 then
+				break
 			elseif motif.select_info.searchemptyboxesup ~= 0 then
 				found, selX = start.f_searchEmptyBoxes(selX, selY, side, motif.select_info.searchemptyboxesup)
 			end
@@ -944,12 +922,8 @@ function start.f_cellMovement(selX, selY, cmd, side, snd, dir)
 			end
 			if dir ~= nil then
 				found, selX = start.f_searchEmptyBoxes(selX, selY, side, 1)
-			elseif (start.t_grid[selY + 1][selX + 1].char ~= nil or motif.select_info.moveoveremptyboxes == 1) and (config.TeamDuplicates or start.t_grid[selY + 1][selX + 1].char == 'randomselect' or not t_reservedChars[side][start.t_grid[selY + 1][selX + 1].char_ref]) and start.t_grid[selY + 1][selX + 1].hidden ~= 2 
-			and 
-				(((start.t_grid[selY + 1][selX + 1].char == 'BAGAN' or start.t_grid[selY + 1][selX + 1].char ~= 'BAGAN') and main.f_tableLength(start.p[side].t_selected)==0) or
-				((start.t_grid[selY + 1][selX + 1].char ~= 'BAGAN' and start.t_grid[selY + 1][selX + 1].char ~= 'BiollanteRose/BiollanteRose_unotag.def') and main.f_tableLength(start.p[side].t_selected)>0))
-			then
-			break
+			elseif (start.t_grid[selY + 1][selX + 1].char ~= nil or motif.select_info.moveoveremptyboxes == 1) and (config.TeamDuplicates or start.t_grid[selY + 1][selX + 1].char == 'randomselect' or not t_reservedChars[side][start.t_grid[selY + 1][selX + 1].char_ref]) and start.t_grid[selY + 1][selX + 1].hidden ~= 2 then
+				break
 			elseif motif.select_info.searchemptyboxesdown ~= 0 then
 				found, selX = start.f_searchEmptyBoxes(selX, selY, side, motif.select_info.searchemptyboxesdown)
 			end
@@ -970,12 +944,8 @@ function start.f_cellMovement(selX, selY, cmd, side, snd, dir)
 						selX = tmpX
 					end
 				end
-				if (start.t_grid[selY + 1][selX + 1].char ~= nil or motif.select_info.moveoveremptyboxes == 1) and (config.TeamDuplicates or start.t_grid[selY + 1][selX + 1].char == 'randomselect' or not t_reservedChars[side][start.t_grid[selY + 1][selX + 1].char_ref]) and start.t_grid[selY + 1][selX + 1].hidden ~= 2 
-				and 
-					(((start.t_grid[selY + 1][selX + 1].char == 'BAGAN' or start.t_grid[selY + 1][selX + 1].char ~= 'BAGAN') and main.f_tableLength(start.p[side].t_selected)==0) or
-					((start.t_grid[selY + 1][selX + 1].char ~= 'BAGAN' and start.t_grid[selY + 1][selX + 1].char ~= 'BiollanteRose/BiollanteRose_unotag.def') and main.f_tableLength(start.p[side].t_selected)>0))
-				then
-				break
+				if (start.t_grid[selY + 1][selX + 1].char ~= nil or motif.select_info.moveoveremptyboxes == 1) and (config.TeamDuplicates or start.t_grid[selY + 1][selX + 1].char == 'randomselect' or not t_reservedChars[side][start.t_grid[selY + 1][selX + 1].char_ref]) and start.t_grid[selY + 1][selX + 1].hidden ~= 2 then
+					break
 				end
 			end
 		end
@@ -992,12 +962,8 @@ function start.f_cellMovement(selX, selY, cmd, side, snd, dir)
 						selX = tmpX
 					end
 				end
-				if (start.t_grid[selY + 1][selX + 1].char ~= nil or motif.select_info.moveoveremptyboxes == 1) and (config.TeamDuplicates or start.t_grid[selY + 1][selX + 1].char == 'randomselect' or not t_reservedChars[side][start.t_grid[selY + 1][selX + 1].char_ref]) and start.t_grid[selY + 1][selX + 1].hidden ~= 2 
-				and 
-					(((start.t_grid[selY + 1][selX + 1].char == 'BAGAN' or start.t_grid[selY + 1][selX + 1].char ~= 'BAGAN') and main.f_tableLength(start.p[side].t_selected)==0) or
-					((start.t_grid[selY + 1][selX + 1].char ~= 'BAGAN' and start.t_grid[selY + 1][selX + 1].char ~= 'BiollanteRose/BiollanteRose_unotag.def') and main.f_tableLength(start.p[side].t_selected)>0))
-				then
-				break
+				if (start.t_grid[selY + 1][selX + 1].char ~= nil or motif.select_info.moveoveremptyboxes == 1) and (config.TeamDuplicates or start.t_grid[selY + 1][selX + 1].char == 'randomselect' or not t_reservedChars[side][start.t_grid[selY + 1][selX + 1].char_ref]) and start.t_grid[selY + 1][selX + 1].hidden ~= 2 then
+					break
 				end
 			end
 		end
@@ -1686,26 +1652,9 @@ function launchFight(data)
 		t.order = data.order or 1
 		t.orderselect = {main.f_arg(data.p1orderselect, main.orderSelect[1]), main.f_arg(data.p2orderselect, main.orderSelect[2])}
 		t.p1char = data.p1char or {}
-		if (start.p[1].teamMode == 3 or start.p[1].teamMode == 1 or start.p[1].teamMode == 2) and (start.f_getCharData(start.p[1].t_selected[1].ref).single or
-			start.f_getCharData(start.p[1].t_selected[2].ref).single or
-			(start.p[1].teamMode == 3 and start.f_getCharData(start.p[1].t_selected[3].ref).single)) then 
-			start.p[1].numChars = 1
-			start.p[1].teamMode = 0
-		else
-			start.p[1].numChars = data.p1numchars or math.max(start.p[1].numChars, #t.p1char)
-			start.p[1].teamMode = start.f_stringToTeamMode(data.p1teammode) or start.p[1].teamMode
-		end
 		t.p1numratio = data.p1numratio or {}
 		t.p1rounds = data.p1rounds or nil
 		t.p2char = data.p2char or {}
-		if   (gamemode('versus') or gamemode('teamversusduo')  or gamemode('turnsversus') or gamemode('watch')) and (start.p[2].teamMode == 3 or start.p[2].teamMode == 1 or start.p[2].teamMode == 2) and (start.f_getCharData(start.p[2].t_selected[1].ref).single or
-			start.f_getCharData(start.p[2].t_selected[2].ref).single or
-			(start.p[2].teamMode == 3 and start.f_getCharData(start.p[2].t_selected[3].ref).single)) then 
-				start.p[2].numChars = 1
-				start.p[2].teamMode = 0
-			else start.p[2].numChars = data.p2numchars or math.max(start.p[2].numChars, #t.p2char)
-		 		start.p[2].teamMode = start.f_stringToTeamMode(data.p2teammode) or start.p[2].teamMode
-		end
 		t.p2numratio = data.p2numratio or {}
 		t.p2rounds = data.p2rounds or nil
 		t.exclude = data.exclude or {}
@@ -2595,11 +2544,9 @@ function start.f_selectMenu(side, cmd, player, member, selectState)
 				getAnim = true
 			end
 			--randomselect cell
-			if (start.f_selGrid(start.c[player].cell + 1).char == 'randomselect' or start.f_selGrid(start.c[player].cell + 1).hidden == 3) or 
-		((start.f_selGrid(start.c[player].cell + 1).free == 13 or start.f_selGrid(start.c[player].cell + 1).free == 12) and start.p[side].teamMode == 2)
-			then
+			if start.f_selGrid(start.c[player].cell + 1).char == 'randomselect' or start.f_selGrid(start.c[player].cell + 1).hidden == 3 then
 				if start.c[player].randCnt > 0 then
-					start.c[player].randCnt = start.c[player].randCnt - 5
+					start.c[player].randCnt = start.c[player].randCnt - 1
 					start.c[player].selRef = start.c[player].randRef
 				else
 					if motif.select_info.random_move_snd_cancel == 1 then
@@ -2663,8 +2610,7 @@ function start.f_selectMenu(side, cmd, player, member, selectState)
 				t_reservedChars[side][start.c[player].selRef] = true
 			end
 			start.p[side].t_cursor[start.p[side].numChars - member + 1] = {x = start.c[player].selX, y = start.c[player].selY}
-			if (main.f_tableLength(start.p[side].t_selected) == start.p[side].numChars)  or 
-			((start.f_selGrid(start.c[player].cell + 1).free==12 or start.f_selGrid(start.c[player].cell + 1).free==13) and start.p[side].teamMode ~= 2) then --if all characters have been chosen
+			if main.f_tableLength(start.p[side].t_selected) == start.p[side].numChars then --if all characters have been chosen
 				if side == 1 and main.cpuSide[2] and start.reset then --if player1 is allowed to select p2 characters
 					if timerSelect == -1 then
 						start.p[2].teamMode = start.p[1].teamMode
@@ -2677,18 +2623,18 @@ function start.f_selectMenu(side, cmd, player, member, selectState)
 					end
 				end
 				start.p[side].selEnd = true
---TURNED OFF	--elseif not config.TeamDuplicates and start.t_grid[start.c[player].selY + 1][start.c[player].selX + 1].char ~= 'randomselect' then
---AUTO CELL SELECT	--local t_dirs = {'F', 'B', 'D', 'U'}
---MOVING WHEN			--if start.c[player].selY + 1 >= motif.select_info.rows then --next row not visible on the screen
---DUPLICATE			--t_dirs = {'F', 'B', 'U', 'D'}
-				--end
-				--for _, v in ipairs(t_dirs) do
-					--local selXOld, selYOld = start.c[player].selX, start.c[player].selY
-					--start.c[player].selX, start.c[player].selY = start.f_cellMovement(start.c[player].selX, start.c[player].selY, cmd, side, start.f_getCursorData(player, '_cursor_move_snd'), v)
-					--if start.c[player].selX ~= selXOld or start.c[player].selY ~= selYOld then
-						--break
-					--end
-				--end
+			elseif not config.TeamDuplicates and start.t_grid[start.c[player].selY + 1][start.c[player].selX + 1].char ~= 'randomselect' then
+				local t_dirs = {'F', 'B', 'D', 'U'}
+				if start.c[player].selY + 1 >= motif.select_info.rows then --next row not visible on the screen
+					t_dirs = {'F', 'B', 'U', 'D'}
+				end
+				for _, v in ipairs(t_dirs) do
+					local selXOld, selYOld = start.c[player].selX, start.c[player].selY
+					start.c[player].selX, start.c[player].selY = start.f_cellMovement(start.c[player].selX, start.c[player].selY, cmd, side, start.f_getCursorData(player, '_cursor_move_snd'), v)
+					if start.c[player].selX ~= selXOld or start.c[player].selY ~= selYOld then
+						break
+					end
+				end
 			end
 			if main.coop and (side == 1 or gamemode('versuscoop')) then --remaining members are controlled by different players
 				selectState = 4

@@ -301,11 +301,12 @@ end
 if main.flags['-ailevel'] ~= nil then
 	config.Difficulty = math.max(1, math.min(tonumber(main.flags['-ailevel']), 8))
 end
-if main.flags['-speed'] ~= nil and tonumber(main.flags['-speed']) > 0 then
-	setGameSpeed(tonumber(main.flags['-speed']) * config.Framerate / 100)
+if main.flags['-speed'] ~= nil then
+	--config.GameSpeed = math.max(10, math.min(tonumber(main.flags['-speed']), 200))
+	setGameSpeed(math.max(10, math.min(tonumber(main.flags['-speed']), 200)))
 end
 if main.flags['-speedtest'] ~= nil then
-	setGameSpeed(100 * config.Framerate)
+	setGameSpeed(100)
 end
 if main.flags['-nosound'] ~= nil then
 	setVolumeMaster(0)
@@ -1628,7 +1629,7 @@ function main.f_drawInput(t, txt, overlay, offsetY, spacingY, background, catego
 end
 
 main.t_validParams = {
-	char = {music = true, musicalt = true, musiclife = true, musicvictory = true, ai = true, vsscreen = true, victoryscreen = true, rankdisplay = true, rounds = true, time = true, single = true, includestage = true, boss = true, bonus = true, exclude = true, hidden = true, order = true, ordersurvival = true, arcadepath = true, ratiopath = true, slot = true, unlock = true, select = true, next = true, previous = true, free = true},
+	char = {music = true, musicalt = true, musiclife = true, musicvictory = true, ai = true, vsscreen = true, victoryscreen = true, rankdisplay = true, rounds = true, time = true, single = true, includestage = true, boss = true, bonus = true, exclude = true, hidden = true, order = true, ordersurvival = true, arcadepath = true, ratiopath = true, slot = true, unlock = true, select = true, next = true, previous = true},
 	stage = {music = true, musicalt = true, musiclife = true, musicvictory = true, order = true, unlock = true}
 }
 
@@ -2100,25 +2101,8 @@ for i = 1, #main.t_selChars do
 	--if character's name has been stored
 	if main.t_selChars[i].name ~= nil then
 		--generate table with characters allowed to be randomly selected
-		if main.t_selChars[i].playable
-		 and (main.t_selChars[i].hidden == nil 
-		 or (main.t_selChars[i].hidden == 1 or main.t_selChars[i].hidden == 0)
-		 or (main.t_selChars[i].hidden == 2 and main.t_selChars[i].free == 1 and stats.modes['arcade']['clear'] >= 1)
-		 or (main.t_selChars[i].hidden == 2 and main.t_selChars[i].free == 2 and stats.modes['arcade']['clear'] >= 2)
-		 or (main.t_selChars[i].hidden == 2 and main.t_selChars[i].free == 3 and stats.modes['arcade']['clear'] >= 3)
-		 or (main.t_selChars[i].hidden == 2 and main.t_selChars[i].free == 4 and stats.modes['arcade']['clear'] >= 4)
-		 or (main.t_selChars[i].hidden == 2 and main.t_selChars[i].free == 5 and stats.modes['arcade']['clear'] >= 5)
-		 or (main.t_selChars[i].hidden == 2 and main.t_selChars[i].free == 6 and stats.modes['arcade']['clear'] >= 6)
-		 or (main.t_selChars[i].hidden == 2 and main.t_selChars[i].free == 7 and stats.modes['arcade']['clear'] >= 7)
-		 or (main.t_selChars[i].hidden == 2 and main.t_selChars[i].free == 8 and stats.modes['arcade']['clear'] >= 8)
-		 or (main.t_selChars[i].hidden == 2 and main.t_selChars[i].free == 9 and stats.modes['arcade']['clear'] >= 9)
-		 or (main.t_selChars[i].hidden == 2 and main.t_selChars[i].free == 10 and stats.modes['arcade']['clear'] >= 10)
-		 or (main.t_selChars[i].hidden == 2 and main.t_selChars[i].free == 11 and stats.modes['arcade']['clear'] >= 11)
-		-- or (main.t_selChars[i].hidden == 2 and main.t_selChars[i].free == 12 and stats.modes['arcade']['clear'] >= 12)
-		 --or (main.t_selChars[i].hidden == 2 and main.t_selChars[i].free == 13 and stats.modes['arcade']['clear'] >= 13)
-			) 
-		and (main.t_selChars[i].exclude == nil or main.t_selChars[i].exclude == 0) then
-		table.insert(main.t_randomChars, i - 1)
+		if main.t_selChars[i].playable and (main.t_selChars[i].hidden == nil or main.t_selChars[i].hidden <= 1) and (main.t_selChars[i].exclude == nil or main.t_selChars[i].exclude == 0) then
+			table.insert(main.t_randomChars, i - 1)
 		end
 	end
 end
@@ -2345,6 +2329,7 @@ main.t_itemname = {
 		main.makeRoster = true
 		main.orderSelect[1] = true
 		main.orderSelect[2] = true
+		main.rankDisplay = true
 		main.resetScore = true
 		main.resultsTable = motif.win_screen
 		main.stageOrder = true
@@ -2357,59 +2342,6 @@ main.t_itemname = {
 			main.teamMenu[2].single = true
 			main.txt_mainSelect:update({text = motif.select_info.title_arcade_text})
 		else --teamarcade
-			--main.teamMenu[1].ratio = true
-			--main.teamMenu[1].simul = true
-			--main.teamMenu[1].single = true
-			main.teamMenu[1].tag = true
-			--main.teamMenu[1].turns = true
-			--main.teamMenu[2].ratio = true
-			--main.teamMenu[2].simul = true
-			--main.teamMenu[2].single = true
-			main.teamMenu[2].tag = true
-			--main.teamMenu[2].turns = true
-			main.txt_mainSelect:update({text = motif.select_info.title_teamarcade_text})
-		end
-		main.versusScreen = true
-		main.victoryScreen = true
-		main.f_setCredits()
-		setGameMode('arcade')
-		hook.run("main.t_itemname")
-		if start.challenger == 0 then
-			return start.f_selectMode
-		end
-		return nil
-	end,
-    ['duoarcade'] = function(t, item)
-		main.f_playerInput(main.playerInput, 1)
-		main.t_pIn[2] = 1
-		main.aiRamp = true
-		main.charparam.ai = true
-		main.charparam.arcadepath = true
-		main.charparam.music = true
-		main.charparam.rounds = true
-		main.charparam.single = true
-		main.charparam.stage = true
-		main.charparam.time = true
-		main.continueScreen = true
-		main.exitSelect = true
-		main.hiscoreScreen = true
-		--main.lifebar.p1score = true
-		--main.lifebar.p2aiLevel = true
-		main.makeRoster = true
-		main.orderSelect[1] = true
-		main.orderSelect[2] = true
-		main.resetScore = true
-		main.resultsTable = motif.win_screen
-		main.stageOrder = true
-		main.storyboard.credits = true
-		main.storyboard.ending = true
-		main.storyboard.gameover = true
-		main.storyboard.intro = true
-		if t ~= nil and t[item].itemname == 'duoarcade' then
-			main.teamMenu[1].simul = true
-			main.teamMenu[2].simul = true
-			main.txt_mainSelect:update({text = motif.select_info.title_duoarcade_text})
-		else --teamarcade
 			main.teamMenu[1].ratio = true
 			main.teamMenu[1].simul = true
 			main.teamMenu[1].single = true
@@ -2426,60 +2358,6 @@ main.t_itemname = {
 		main.victoryScreen = true
 		main.f_setCredits()
 		setGameMode('arcade')
-		hook.run("main.t_itemname")
-		if start.challenger == 0 then
-			return start.f_selectMode
-		end
-		return nil
-	end,
-    ['turnsarcade'] = function(t, item)
-		main.f_playerInput(main.playerInput, 1)
-		main.t_pIn[2] = 1
-		main.aiRamp = true
-		main.charparam.ai = true
-		main.charparam.arcadepath = true
-		main.charparam.music = true
-		main.charparam.rounds = true
-		main.charparam.single = true
-		main.charparam.stage = true
-		main.charparam.time = true
-		main.continueScreen = true
-		main.exitSelect = true
-		main.hiscoreScreen = true
-		--main.lifebar.p1score = true
-		--main.lifebar.p2aiLevel = true
-		main.makeRoster = true
-		main.orderSelect[1] = true
-		main.orderSelect[2] = true
-		main.resetScore = true
-		main.resultsTable = motif.win_screen
-		main.stageOrder = true
-		main.storyboard.credits = true
-		main.storyboard.ending = true
-		main.storyboard.gameover = true
-		main.storyboard.intro = true
-		if t ~= nil and t[item].itemname == 'turnsarcade' then
-			main.teamMenu[1].turns = true
-			main.teamMenu[2].turns = true
-			main.txt_mainSelect:update({text = motif.select_info.title_turnsarcade_text})
-		else --teamarcade
-			main.teamMenu[1].ratio = true
-			main.teamMenu[1].simul = true
-			main.teamMenu[1].single = true
-			main.teamMenu[1].tag = true
-			main.teamMenu[1].turns = true
-			main.teamMenu[2].ratio = true
-			main.teamMenu[2].simul = true
-			main.teamMenu[2].single = true
-			main.teamMenu[2].tag = true
-			main.teamMenu[2].turns = true
-			main.txt_mainSelect:update({text = motif.select_info.title_teamarcade_text})
-		end
-		main.versusScreen = true
-		main.victoryScreen = true
-		main.f_setCredits()
-		setGameMode('arcade')
-		hook.run("main.t_itemname")
 		if start.challenger == 0 then
 			return start.f_selectMode
 		end
@@ -2773,8 +2651,7 @@ main.t_itemname = {
 		main.charparam.time = true
 		main.dropDefeated = true
 		main.elimination = true
-		--main.exitSelect = true
-		main.versusScreen = true
+		main.exitSelect = true
 		main.hiscoreScreen = true
 		--main.lifebar.match = true
 		--main.lifebar.p2aiLevel = true
@@ -2862,8 +2739,8 @@ main.t_itemname = {
 		--main.lifebar.p1score = true
 		--main.lifebar.p2aiLevel = true
 		main.makeRoster = true
-		main.numSimul = {2, math.min(2, config.Players)}
-		--main.numTag = {2, math.min(4, config.Players)}
+		main.numSimul = {2, math.min(4, config.Players)}
+		main.numTag = {2, math.min(4, config.Players)}
 		main.rankDisplay = true
 		main.resetScore = true
 		main.resultsTable = motif.win_screen
@@ -2873,12 +2750,12 @@ main.t_itemname = {
 		main.storyboard.gameover = true
 		main.storyboard.intro = true
 		main.teamMenu[1].simul = true
-		--main.teamMenu[1].tag = true
-		--main.teamMenu[2].ratio = true
+		main.teamMenu[1].tag = true
+		main.teamMenu[2].ratio = true
 		main.teamMenu[2].simul = true
-		--main.teamMenu[2].single = true
-		--main.teamMenu[2].tag = true
-		--main.teamMenu[2].turns = true
+		main.teamMenu[2].single = true
+		main.teamMenu[2].tag = true
+		main.teamMenu[2].turns = true
 		main.versusScreen = true
 		main.victoryScreen = true
 		main.f_setCredits()
@@ -2968,123 +2845,29 @@ main.t_itemname = {
 		--main.lifebar.p2winCount = true
 		main.orderSelect[1] = true
 		main.orderSelect[2] = true
+		main.rankDisplay = true
 		main.selectMenu[2] = true
 		main.stageMenu = true
 		if start.challenger == 0 and t[item].itemname == 'versus' then
 			main.teamMenu[1].single = true
 			main.teamMenu[2].single = true
 			main.txt_mainSelect:update({text = motif.select_info.title_versus_text})
-        elseif start.challenger == 0 and t[item].itemname == 'teamversus' then --teamversus	
-			--main.teamMenu[1].ratio = true	
-			main.teamMenu[1].tag = true	
-			--main.teamMenu[2].ratio = true	
-			main.teamMenu[2].tag = true	
-			main.txt_mainSelect:update({text = motif.select_info.title_teamversus_text})	
-		elseif start.challenger == 0 and t[item].itemname == 'teamversusduo' then --teamversus	
-			--main.teamMenu[1].ratio = true	
-			main.teamMenu[1].simul = true	
-			--main.teamMenu[2].ratio = true	
-			main.teamMenu[2].simul = true	
-			main.txt_mainSelect:update({text = motif.select_info.title_teamversusduo_text})	
-		elseif start.challenger == 0 and t[item].itemname == 'turnsversus' then --teamversus	
-			--main.teamMenu[1].ratio = true	
-			main.teamMenu[1].turns = true	
-			--main.teamMenu[2].ratio = true	
-			main.teamMenu[2].turns = true	
-			main.txt_mainSelect:update({text = motif.select_info.title_turnsversus_text})	
-		end
-		main.versusScreen = true
-		main.victoryScreen = true
-		setGameMode('versus')
-		hook.run("main.t_itemname")
-		if start.challenger == 0 then
-			return start.f_selectMode
-		end
-		return nil
-	end,
-    ['teamversusduo'] = function(t, item)
-		setHomeTeam(1)
-		if start.challenger > 0 then
-			main.t_pIn[2] = start.challenger
-		end
-		main.cpuSide[2] = false
-		--main.lifebar.p1winCount = true
-		--main.lifebar.p2winCount = true
-		main.orderSelect[1] = true
-		main.orderSelect[2] = true
-		main.selectMenu[2] = true
-		main.stageMenu = true
-		if start.challenger == 0 and t[item].itemname == 'versus' then
+		else --teamversus
+			main.teamMenu[1].ratio = true
+			main.teamMenu[1].simul = true
 			main.teamMenu[1].single = true
+			main.teamMenu[1].tag = true
+			main.teamMenu[1].turns = true
+			main.teamMenu[2].ratio = true
+			main.teamMenu[2].simul = true
 			main.teamMenu[2].single = true
-			main.txt_mainSelect:update({text = motif.select_info.title_versus_text})
-        elseif start.challenger == 0 and t[item].itemname == 'teamversus' then --teamversus	
-			--main.teamMenu[1].ratio = true	
-			main.teamMenu[1].tag = true	
-			--main.teamMenu[2].ratio = true	
-			main.teamMenu[2].tag = true	
-			main.txt_mainSelect:update({text = motif.select_info.title_teamversus_text})	
-		elseif start.challenger == 0 and t[item].itemname == 'teamversusduo' then --teamversus	
-			--main.teamMenu[1].ratio = true	
-			main.teamMenu[1].simul = true	
-			--main.teamMenu[2].ratio = true	
-			main.teamMenu[2].simul = true	
-			main.txt_mainSelect:update({text = motif.select_info.title_teamversusduo_text})	
-		elseif start.challenger == 0 and t[item].itemname == 'turnsversus' then --teamversus	
-			--main.teamMenu[1].ratio = true	
-			main.teamMenu[1].turns = true	
-			--main.teamMenu[2].ratio = true	
-			main.teamMenu[2].turns = true	
-			main.txt_mainSelect:update({text = motif.select_info.title_turnsversus_text})	
+			main.teamMenu[2].tag = true
+			main.teamMenu[2].turns = true
+			main.txt_mainSelect:update({text = motif.select_info.title_teamversus_text})
 		end
 		main.versusScreen = true
 		main.victoryScreen = true
 		setGameMode('versus')
-		hook.run("main.t_itemname")
-		if start.challenger == 0 then
-			return start.f_selectMode
-		end
-		return nil
-	end,
-    ['turnsversus'] = function(t, item)
-		setHomeTeam(1)
-		if start.challenger > 0 then
-			main.t_pIn[2] = start.challenger
-		end
-		main.cpuSide[2] = false
-		--main.lifebar.p1winCount = true
-		--main.lifebar.p2winCount = true
-		main.orderSelect[1] = true
-		main.orderSelect[2] = true
-		main.selectMenu[2] = true
-		main.stageMenu = true
-		if start.challenger == 0 and t[item].itemname == 'versus' then
-			main.teamMenu[1].single = true
-			main.teamMenu[2].single = true
-			main.txt_mainSelect:update({text = motif.select_info.title_versus_text})
-        elseif start.challenger == 0 and t[item].itemname == 'teamversus' then --teamversus	
-			--main.teamMenu[1].ratio = true	
-			main.teamMenu[1].tag = true	
-			--main.teamMenu[2].ratio = true	
-			main.teamMenu[2].tag = true	
-			main.txt_mainSelect:update({text = motif.select_info.title_teamversus_text})	
-		elseif start.challenger == 0 and t[item].itemname == 'teamversusduo' then --teamversus	
-			--main.teamMenu[1].ratio = true	
-			main.teamMenu[1].simul = true	
-			--main.teamMenu[2].ratio = true	
-			main.teamMenu[2].simul = true	
-			main.txt_mainSelect:update({text = motif.select_info.title_teamversusduo_text})	
-		elseif start.challenger == 0 and t[item].itemname == 'turnsversus' then --teamversus	
-			--main.teamMenu[1].ratio = true	
-			main.teamMenu[1].turns = true	
-			--main.teamMenu[2].ratio = true	
-			main.teamMenu[2].turns = true	
-			main.txt_mainSelect:update({text = motif.select_info.title_turnsversus_text})	
-		end
-		main.versusScreen = true
-		main.victoryScreen = true
-		setGameMode('versus')
-		hook.run("main.t_itemname")
 		if start.challenger == 0 then
 			return start.f_selectMode
 		end
@@ -3099,82 +2882,42 @@ main.t_itemname = {
 		--main.lifebar.p2winCount = true
 		main.numSimul = {2, math.min(4, math.max(2, math.ceil(config.Players / 2)))}
 		main.numTag = {2, math.min(4, math.max(2, math.ceil(config.Players / 2)))}
+		main.rankDisplay = true
 		main.selectMenu[2] = true
 		main.stageMenu = true
 		main.teamMenu[1].simul = true
-		--main.teamMenu[1].tag = true
+		main.teamMenu[1].tag = true
 		main.teamMenu[2].simul = true
-		--main.teamMenu[2].tag = true
+		main.teamMenu[2].tag = true
 		main.versusScreen = true
 		main.victoryScreen = true
 		main.txt_mainSelect:update({text = motif.select_info.title_versuscoop_text})
 		setGameMode('versuscoop')
-		hook.run("main.t_itemname")
 		return start.f_selectMode
 	end,
 	--WATCH
-	['singles'] = function()
+	['watch'] = function()
 		main.f_playerInput(main.playerInput, 1)
 		main.t_pIn[2] = 1
 		main.cpuSide[1] = true
 		--main.lifebar.p1aiLevel = true
 		--main.lifebar.p2aiLevel = true
+		main.rankDisplay = true
 		main.selectMenu[2] = true
 		main.stageMenu = true
-		main.teamMenu[1].single = true
-		main.teamMenu[2].single = true
-		main.versusScreen = true
-		main.txt_mainSelect:update({text = motif.select_info.title_watch_text})
-		setGameMode('watch')
-		hook.run("main.t_itemname")
-		return start.f_selectMode
-	end,
-    ['doubles'] = function()
-		main.f_playerInput(main.playerInput, 1)
-		main.t_pIn[2] = 1
-		main.cpuSide[1] = true
-		--main.lifebar.p1aiLevel = true
-		--main.lifebar.p2aiLevel = true
-		main.selectMenu[2] = true
-		main.stageMenu = true
+		main.teamMenu[1].ratio = true
 		main.teamMenu[1].simul = true
-		main.teamMenu[2].simul = true
-		main.versusScreen = true
-		main.txt_mainSelect:update({text = motif.select_info.title_watch_text})
-		setGameMode('watch')
-		hook.run("main.t_itemname")
-		return start.f_selectMode
-	end,
-    ['triples'] = function()
-		main.f_playerInput(main.playerInput, 1)
-		main.t_pIn[2] = 1
-		main.cpuSide[1] = true
-		--main.lifebar.p1aiLevel = true
-		--main.lifebar.p2aiLevel = true
-		main.selectMenu[2] = true
-		main.stageMenu = true
+		main.teamMenu[1].single = true
 		main.teamMenu[1].tag = true
-		main.teamMenu[2].tag = true
-		main.versusScreen = true
-		main.txt_mainSelect:update({text = motif.select_info.title_watch_text})
-		setGameMode('watch')
-		hook.run("main.t_itemname")
-		return start.f_selectMode
-	end,
-    ['turnswatch'] = function()
-		main.f_playerInput(main.playerInput, 1)
-		main.t_pIn[2] = 1
-		main.cpuSide[1] = true
-		--main.lifebar.p1aiLevel = true
-		--main.lifebar.p2aiLevel = true
-		main.selectMenu[2] = true
-		main.stageMenu = true
 		main.teamMenu[1].turns = true
+		main.teamMenu[2].ratio = true
+		main.teamMenu[2].simul = true
+		main.teamMenu[2].single = true
+		main.teamMenu[2].tag = true
 		main.teamMenu[2].turns = true
 		main.versusScreen = true
 		main.txt_mainSelect:update({text = motif.select_info.title_watch_text})
 		setGameMode('watch')
-		hook.run("main.t_itemname")
 		return start.f_selectMode
 	end,
 }
@@ -4321,7 +4064,7 @@ if main.flags['-stresstest'] ~= nil then
 	main.f_default()
 	local frameskip = tonumber(main.flags['-stresstest'])
 	if frameskip >= 1 then
-		setGameSpeed((frameskip + 1) * config.Framerate)
+		setGameSpeed(frameskip + 1)
 	end
 	setGameMode('randomtest')
 	randomtest.run()
